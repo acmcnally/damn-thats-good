@@ -40,7 +40,7 @@ Feature backlog lives in Linear — team "Damn That's Good" (issue prefix `DAMN-
 
 ## Getting started
 
-Requires Node ≥22 and pnpm (via `corepack enable`).
+Requires Node ≥24 (see `.node-version`) and pnpm (via `corepack enable`).
 
 ```bash
 pnpm install

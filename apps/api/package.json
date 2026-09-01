@@ -11,5 +11,10 @@
   "dependencies": {
     "@dtg/db": "workspace:*",
     "@dtg/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:"
   }
 }

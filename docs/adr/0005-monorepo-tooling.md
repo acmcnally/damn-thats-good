@@ -30,6 +30,7 @@ Name-resolution (`apps/*` depending on `packages/*` via `workspace:*`) is the ea
 - **Cross-package watch is automatic.** Because apps consume source, editing `packages/shared` re-triggers the consuming app's dev server with no extra watcher process.
 - **App production builds bundle the workspace packages.** `apps/api` and `apps/web` build with **tsup** (esbuild), configured `noExternal: [/^@dtg\//]` so the `@dtg/*` source is inlined into the output. This is the one real cost of the source-consumption model — a `tsc`-only build cannot reach source that resolves under `node_modules` — and it is a single small config file per app. (`apps/web`'s tsup build is a scaffold placeholder; its real build is Vite, arriving with DAMN-26.)
 - **Build ordering is a non-issue** here: `pnpm -r build` only builds the apps (`packages/*` declare no `build` script), and each app bundles what it needs.
+- **Each workspace declares the tools it invokes.** `tsup`, `typescript`, and `@types/node` are listed in the devDependencies of the workspaces that use them (not just root-hoisted), so a filtered install (`pnpm --filter`, a Docker build copying one app) still resolves them. Their versions are pinned once in a **pnpm `catalog:`** in `pnpm-workspace.yaml` and referenced as `catalog:` — one place to bump.
 
 Trade-off accepted: the app build toolchain (tsup) is a deliberate choice made now rather than inherited from a framework default. It is a conventional pick for TypeScript monorepos and is swappable.
 

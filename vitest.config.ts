@@ -1,7 +1,9 @@
 import { configDefaults, defineConfig } from 'vitest/config';
 
-// Two tiers (ADR-0012). The API component tier (Testcontainers Postgres) and the
-// Playwright workflow tier arrive with DAMN-26 / DAMN-27 and are not wired here.
+// Tiers per ADR-0012. The component tier has two flavours with different needs:
+//   - web: jsdom + (later) React Testing Library + MSW
+//   - api: node + (later) supertest against a real Postgres via Testcontainers
+// The Testcontainers setup and the Playwright workflow tier arrive with DAMN-26/27.
 export default defineConfig({
   test: {
     projects: [
@@ -15,9 +17,16 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'component',
+          name: 'component-web',
           environment: 'jsdom',
           include: ['apps/web/src/**/*.component.test.{ts,tsx}'],
+        },
+      },
+      {
+        test: {
+          name: 'component-api',
+          environment: 'node',
+          include: ['apps/api/src/**/*.component.test.ts'],
         },
       },
     ],
