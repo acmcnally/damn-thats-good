@@ -1,0 +1,7 @@
+dist
+coverage
+pnpm-lock.yaml
+
+# Prose docs (ADRs, guides) are authored by hand — Prettier's Markdown
+# normalization (emphasis markers, list style) is churn without benefit here.
+*.md

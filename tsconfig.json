@@ -1,0 +1,7 @@
+{
+  // Editor fallback for root-level config files. Each workspace has its own
+  // tsconfig; cross-package imports resolve via package `exports` + the pnpm
+  // symlink (ADR-0005), so no `paths` mapping here.
+  "extends": "./tsconfig.base.json",
+  "include": ["vitest.config.ts", "eslint.config.ts"]
+}

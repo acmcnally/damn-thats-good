@@ -9,8 +9,8 @@ A personal recipe book — starts single-user, built to grow into sharing recipe
 - **Frontend:** React + TypeScript, responsive + installable; offline (read-only) deferred to V4 (`apps/web`)
 - **Backend:** Node.js + NestJS + TypeScript, REST API (`apps/api`) — HTTP adapter (Express/Fastify) not yet locked, see ADR-0001
 - **Database:** PostgreSQL, via Drizzle ORM (`packages/db`)
-- **Auth:** approach + provider not yet chosen — managed (Auth0 / WorkOS / Clerk) vs. self-hosted (Passport), see ADR-0003. Google OAuth later.
-- **Monorepo:** pnpm workspaces (Turborepo deferred until build times warrant it)
+- **Auth:** WorkOS AuthKit (managed, free tier) — email OTP for V1, Google OAuth in V3; Auth0 is the documented fallback. See ADR-0003.
+- **Monorepo:** pnpm workspaces — `packages/*` consumed as TS source, apps bundled with tsup; Turborepo deferred. See ADR-0005.
 - **Hosting:** self-hosted on Proxmox, Docker Compose; public ingress (Cloudflare Tunnel vs. Tailscale Funnel) not yet locked, see ADR-0004
 
 See `docs/adr/` for the reasoning behind each of these.
@@ -40,7 +40,13 @@ Feature backlog lives in Linear — team "Damn That's Good" (issue prefix `DAMN-
 
 ## Getting started
 
+Requires Node ≥24 (see `.node-version`) and pnpm (via `corepack enable`).
+
 ```bash
 pnpm install
-# see apps/api/README.md and apps/web/README.md once scaffolded
+pnpm verify   # lint + typecheck + test + build, across every workspace
 ```
+
+Individual gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. `pnpm format` applies Prettier.
+
+The apps are placeholder scaffolds — a running local stack (Postgres + API + web, `pnpm dev`) arrives with DAMN-26.

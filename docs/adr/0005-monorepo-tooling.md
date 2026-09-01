@@ -1,6 +1,6 @@
 # ADR-0005: Monorepo tooling — pnpm workspaces only, Turborepo deferred
 
-**Status:** Accepted. Build-graph specifics (source-vs-`dist` imports, TS project references, cross-package watch) to be pinned when scaffolding `packages/shared` — see "What pnpm workspaces does *not* solve".
+**Status:** Accepted. Build-graph specifics (source-vs-`dist` imports, TS project references, cross-package watch) were resolved when the workspace was scaffolded (DAMN-25) — see "Resolved during scaffold".
 **Decision drivers:** skill development (portability lens) · scope & simplicity
 
 ## Context
@@ -21,13 +21,17 @@ Frontend (`apps/web`) and backend (`apps/api`) need to share TypeScript types/DT
 - No build caching yet — full rebuilds every time. Acceptable at current repo size; revisit (add Turborepo) the first time local builds or CI start feeling slow from unrelated-package rebuilds.
 - Minimal tooling surface to learn/maintain, consistent with the project's general "add complexity only when the pain is real" approach.
 
-### What pnpm workspaces does *not* solve (address during scaffold)
+### Resolved during scaffold (DAMN-25)
 
-Name-resolution (`apps/*` depending on `packages/*` via `workspace:*`) is the easy part. The parts that still need an explicit decision:
+Name-resolution (`apps/*` depending on `packages/*` via `workspace:*`) is the easy part pnpm gives us. The rest was decided when the workspace was stood up:
 
-- **Source vs. build output:** do `apps/web` / `apps/api` import `packages/shared` and `packages/db` as raw `.ts`, or as compiled `dist/`? Raw TS is simplest in dev but the API's production `tsc`/bundler build must then be configured to compile them too.
-- **TypeScript project references** (`composite: true`, `references: [...]`) — needed for correct incremental builds and editor go-to-definition across packages.
-- **Dev-mode watch across packages** — editing `packages/shared` should hot-reload both apps without a manual rebuild.
-- **Build ordering** — `packages/*` before `apps/*`.
+- **Source, not build output.** `packages/shared` and `packages/db` expose `"exports": { ".": "./src/index.ts" }` — apps import the raw TypeScript. There is no per-package `dist/` and no build step for `packages/*`.
+- **No TypeScript project references.** Each workspace runs its own `tsc --noEmit` for type-checking (`pnpm -r typecheck`); `moduleResolution: "bundler"` plus the pnpm symlink and the `exports` field resolve cross-package imports in the editor and in `tsc`. Project references (`composite`, `tsc -b`) are deferred on the same "add complexity when the pain is real" basis as Turborepo — revisit if cross-package incremental type-checking gets slow.
+- **Cross-package watch is automatic.** Because apps consume source, editing `packages/shared` re-triggers the consuming app's dev server with no extra watcher process.
+- **App production builds bundle the workspace packages.** `apps/api` and `apps/web` build with **tsup** (esbuild), configured `noExternal: [/^@dtg\//]` so the `@dtg/*` source is inlined into the output. This is the one real cost of the source-consumption model — a `tsc`-only build cannot reach source that resolves under `node_modules` — and it is a single small config file per app. (`apps/web`'s tsup build is a scaffold placeholder; its real build is Vite, arriving with DAMN-26.)
+- **Build ordering is a non-issue** here: `pnpm -r build` only builds the apps (`packages/*` declare no `build` script), and each app bundles what it needs.
+- **Each workspace declares the tools it invokes.** `tsup`, `typescript`, and `@types/node` are listed in the devDependencies of the workspaces that use them (not just root-hoisted), so a filtered install (`pnpm --filter`, a Docker build copying one app) still resolves them. Their versions are pinned once in a **pnpm `catalog:`** in `pnpm-workspace.yaml` and referenced as `catalog:` — one place to bump.
 
-These are the reasons projects eventually reach for `tsc` references / `tsup` / Turborepo. Deferring the *task runner* is fine; pick a concrete answer for source-vs-output and watch mode when scaffolding `packages/shared`, and record it here.
+Trade-off accepted: the app build toolchain (tsup) is a deliberate choice made now rather than inherited from a framework default. It is a conventional pick for TypeScript monorepos and is swappable.
+
+Deferred, to be picked up with CI (DAMN-27): a `pnpm.onlyBuiltDependencies` allowlist for dependency lifecycle scripts (pnpm 10 blocks them by default; pnpm 9 does not).

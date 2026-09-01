@@ -1,3 +1,10 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
+
+# Single source of truth for versions of tools each workspace invokes.
+# Reference as "catalog:" in a workspace's package.json.
+catalog:
+  '@types/node': ^24.9.2
+  tsup: ^8.5.1
+  typescript: ~5.9.3
