@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@dtg/shared": ["packages/shared/src/index.ts"],
+      "@dtg/db": ["packages/db/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src", "apps/*/src"]
+}
