@@ -21,6 +21,8 @@
     "@types/node": "catalog:",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "jiti": "^2.7.0",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",

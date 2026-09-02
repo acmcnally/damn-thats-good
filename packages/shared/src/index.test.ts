@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { greeting, SHARED_PACKAGE } from './index';
 
 describe('@dtg/shared', () => {
