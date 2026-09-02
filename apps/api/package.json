@@ -21,8 +21,11 @@
     "rxjs": "^7"
   },
   "devDependencies": {
-    "@swc/core": "^1",
+    "@nestjs/testing": "^11.2.3",
+    "@swc/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
     "tsup": "catalog:",
     "typescript": "catalog:"
   }

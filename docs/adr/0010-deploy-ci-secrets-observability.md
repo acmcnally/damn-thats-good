@@ -43,7 +43,7 @@ Promotion flow: merge to `main` → CI builds the image → deploy to staging �
 - **Deploy is pull-based on the box**: a small script (or [Watchtower](https://containrrr.dev/watchtower/), or a `systemd` timer) pulls the new tagged image and runs `docker compose up -d`. Trigger manually or via a GitHub Actions step that SSHes in — start manual, automate once it is boring.
 - **Workflow tests gate the deploy** (ADR-0012): the Playwright suite runs against the built artifacts after migrations and before cutover. A green PR is necessary but the deploy re-checks end-to-end against exactly what is shipping.
 - **Promotion to prod is release-scoped, not per-feature.** Merged features accumulate on staging. When the maintainer judges the parked set ready, a release is tagged (`vX.Y.Z`) and that exact image is promoted to prod via a manual `workflow_dispatch`. This keeps prod deploys — and their brief downtime — batched and deliberate, and lets a solo maintainer review a coherent set rather than making a promote decision on every merge. The per-feature path stays available as the mechanism for a hotfix that needs to jump the release queue.
-- **Migrations** (Drizzle, ADR-0002) run as an explicit step before the API container starts the new version — a one-shot `migrate` service in the Compose file, not on app boot, so a bad migration fails loudly and does not race multiple app instances.
+- **Migrations** (Drizzle, ADR-0002) run as an explicit step before the API container starts the new version — a one-shot `migrate` service in the Compose file, not on app boot, so a bad migration fails loudly and does not race multiple app instances. **Realized in DAMN-26**: the `migrate` service is gated on Postgres being healthy, and `api` is gated on `migrate` completing successfully.
 - Brief downtime on deploy is acceptable (single instance, family-scale, no SLA). No blue/green.
 
 ### Secrets
@@ -54,7 +54,7 @@ Promotion flow: merge to `main` → CI builds the image → deploy to staging �
 
 ### Observability
 
-- **Uptime**: an external check (UptimeRobot free tier, or a cron on a *different* machine hitting `/api/health`) that alerts the owner (email / push / Telegram) when the app is unreachable. This is the one piece that must exist from day one — the owner should not learn the app is down from a family member. (Implies a lightweight unauthenticated `GET /api/health` endpoint — a V1 requirement, add it to the DAMN-1 / deploy work.)
+- **Uptime**: an external check (UptimeRobot free tier, or a cron on a *different* machine hitting `/api/health`) that alerts the owner (email / push / Telegram) when the app is unreachable. This is the one piece that must exist from day one — the owner should not learn the app is down from a family member. (Implies a lightweight unauthenticated `GET /api/health` endpoint — **shipped in DAMN-26**: returns 200 + a `SELECT 1` DB check, 503 when the DB is unreachable, and is designed to stay outside any auth guard.)
 - **Logs**: `docker compose logs` / journald on the box is enough initially. Add a lightweight aggregator (Loki + Grafana, or Dozzle for a live view) only if debugging via raw logs becomes painful.
 - **Errors**: [self-hosted GlitchTip](https://glitchtip.com/) (Sentry-compatible, runs in a container) if/when silent runtime errors become a problem. Deferred.
 - **Backups**: the ADR-0009 job must alert on failure through the same channel as the uptime check.

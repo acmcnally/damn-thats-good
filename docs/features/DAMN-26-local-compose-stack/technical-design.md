@@ -313,15 +313,24 @@ you to read the diff and ask questions before starting the next.**
   unknown path → SPA fallback. `pnpm dev` path also verified (`:5173` + proxied `/api`).
   `pnpm verify` green.
 
-### Phase E — Tests + docs
-- `packages/db/src/testing.ts` helper; `apps/api` health + meta component tests (`supertest` +
-  Testcontainers); `apps/web` `App.component.test.tsx` (RTL + MSW). Wire SWC into the `component-api`
-  vitest project so decorator metadata works there (an `unplugin-swc` vite plugin, or reuse the
-  inline transform). (`health.service` unit test + placeholder-test removal already done in Phase B.)
-- Docs: `README.md` (Getting started → real `pnpm dev` / `docker compose up`; drop the "placeholder
-  scaffolds" line), `CLAUDE.md` (Commands + Stack notes), ADR touch-ups below.
-- **Verify:** `pnpm verify` fully green (lint + typecheck + all three vitest projects + build);
-  `docker compose up` still green.
+### Phase E — Tests + docs  ✅ done (commit)
+- **`packages/db/src/testing.ts`** (exported as `@dtg/db/testing`, devDep `@testcontainers/postgresql`):
+  `startTestDb()` — starts a throwaway `postgres:17.11` container, migrates it once, returns
+  `{ url, teardown }`. Per-test isolation left as a `TODO(DAMN-2)`.
+- **`apps/api/src/app.component.test.ts`** — `supertest` against the real Nest app booted against
+  `startTestDb()`'s container: `GET /api/health` → 200 `{ok,up}`, `GET /api/meta` → the seeded row.
+  `AppModule` imported dynamically (ConfigModule validates env at eval time).
+- **`apps/web/src/App.component.test.tsx`** — RTL renders `<App/>` with MSW mocking `/api/meta`:
+  asserts the rendered value, and the `role="alert"` error state on a 500.
+- **`vitest.config.ts`**: `component-api` project gets `plugins: [swc.vite()]` (decorator metadata,
+  mirrors `apps/api/.swcrc`) + long timeouts; `component-web` gets `setupFiles`
+  (`@testing-library/jest-dom/vitest`, also added to `apps/web/tsconfig.json` `include` so `tsc`
+  sees the matcher types). `@swc/core` moved to the catalog.
+- Docs: `README.md` (Getting started → `pnpm dev` / `docker compose up`, Docker requirement),
+  `CLAUDE.md` (Commands), ADR touch-ups (0001 Express, 0002 Drizzle wired, 0005 tsup+SWC / Vite,
+  0010 `/api/health` + `migrate` service).
+- **Verified:** `pnpm verify` green — 3 vitest projects, 8 tests / 4 files (2 unit + 2 web-component
+  + 2 api-component). `docker compose up --build` from a wiped volume still green end to end.
 
 Then: pre-PR code review (fresh `/code-review`), incorporate findings, open PR, post the
 cross-issue follow-up comments on DAMN-1 and DAMN-2 (see [Scaffolding & teardown](#cross-issue-follow-up-linear)).
@@ -357,16 +366,18 @@ opens** (so they can link the merged design doc and the real migration filenames
 
 ---
 
-## ADR / doc updates in this PR
+## ADR / doc updates in this PR (done in Phase E)
 
-- **ADR-0001** — one line under "Open: Express vs Fastify adapter": Express adapter in use as of
-  DAMN-26; the decision is still settled at auth wiring, not here.
-- **ADR-0002** — Status note: Drizzle + Postgres wired to a running stack as of DAMN-26; baseline
-  migration mechanics established (`drizzle-kit generate` → committed SQL → one-shot `migrate`).
-- **ADR-0005** — only if the build open-item lands on `nest build` (option b): update the scaffold
-  note that says `apps/api` bundles `@dtg/*` via tsup.
-- **ADR-0010** — note the one-shot `migrate` Compose service and `GET /api/health` now exist.
-- **README.md**, **CLAUDE.md** — Getting started / Commands.
+- **ADR-0001** — "Open: Express vs Fastify adapter" gets an Update note: `@nestjs/platform-express`
+  in use as of DAMN-26, provisional, still settled at auth wiring.
+- **ADR-0002** — Status line: Drizzle + Postgres wired to a running stack; baseline-migration
+  mechanics established (`drizzle-kit generate` → committed SQL → one-shot `migrate`).
+- **ADR-0005** — "Resolved during scaffold" section updated: `apps/web` builds with Vite now (not
+  the placeholder tsup); `apps/api` tsup gained the SWC decorator-metadata transform and bundles
+  `drizzle-orm` + `postgres`; `nest build`/`nest start` tried and rejected (extensionless-ESM).
+- **ADR-0010** — `GET /api/health` marked shipped (200 + `SELECT 1`, 503 on DB down); the one-shot
+  `migrate` service marked realized (gated on Postgres healthy; `api` gated on `migrate` success).
+- **README.md**, **CLAUDE.md** — Getting started / Commands + the Docker requirement.
 
 ---
 

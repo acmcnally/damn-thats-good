@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@swc/core": "catalog:",
     "@types/node": "catalog:",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
@@ -30,6 +31,7 @@
     "prettier": "^3.9.6",
     "typescript": "catalog:",
     "typescript-eslint": "^8.69.0",
+    "unplugin-swc": "^1.5.11",
     "vite": "catalog:",
     "vitest": "^4.1.11"
   }
