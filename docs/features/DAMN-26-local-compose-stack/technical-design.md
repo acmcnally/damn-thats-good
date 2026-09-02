@@ -94,9 +94,13 @@ since it touches ADR-0005.
 
 ## Data model impact
 
-One scaffold table. Baseline migration `packages/db/drizzle/0000_*.sql`:
+One scaffold table. Baseline migration `packages/db/drizzle/0000_*.sql`, with a provisional header:
 
 ```sql
+-- SCAFFOLD(DAMN-26): provisional baseline. app_meta exists only for the walking-skeleton
+-- round-trip. DAMN-2 REGENERATES this baseline from the real schema rather than adding a
+-- drop migration on top — safe while no migration has been applied to a persistent DB
+-- (no staging/prod yet — ADR-0010; CI uses ephemeral Testcontainers). See technical-design.md.
 CREATE TABLE app_meta (
   id          integer PRIMARY KEY DEFAULT 1 CHECK (id = 1),  -- single-row table
   name        text NOT NULL,
@@ -108,8 +112,9 @@ INSERT INTO app_meta (id, name) VALUES (1, 'Damn That''s Good') ON CONFLICT DO N
 Drizzle schema — `packages/db/src/schema.ts`:
 
 ```ts
-// SCAFFOLD(DAMN-26): walking-skeleton round-trip table. DAMN-2 replaces this with the
-// real recipe / version schema and drops app_meta in a follow-up migration.
+// SCAFFOLD(DAMN-26): walking-skeleton round-trip table, nothing real depends on it.
+// DAMN-2 brings the real recipe / version schema and regenerates the baseline migration
+// (see "Migration history" below) — app_meta leaves the schema and the history entirely.
 export const appMeta = pgTable('app_meta', {
   id: integer('id').primaryKey().default(1),
   name: text('name').notNull(),
@@ -120,6 +125,23 @@ export const appMeta = pgTable('app_meta', {
 No `drizzle-kit` config gymnastics — `drizzle.config.ts` points at `src/schema.ts`, migrations land in
 `packages/db/drizzle/`, committed. This does **not** pre-empt ADR-0006/DAMN-2; the real content schema
 is still owned there.
+
+### Migration history — keep it clean
+
+The DAMN-26 baseline is **provisional**. When DAMN-2 lands the real schema it must *regenerate* the
+baseline (delete the DAMN-26 migration files, generate a fresh `0000_*` from the real schema) — **not**
+add a `0001_drop_app_meta`. A layered drop would leave "create a table, then drop it" in the
+append-only migration ledger forever, replayed by every fresh DB.
+
+Regenerating is safe **only while no migration has been applied to a database that can't be discarded**:
+
+- No staging/prod exists until the deploy-pipeline work (ADR-0010) — well after DAMN-2.
+- Local dev DBs are disposable (`docker compose down -v`).
+- CI (DAMN-27) runs migrations against ephemeral Testcontainers — state destroyed each run.
+
+If that stops being true before DAMN-2 (a persistent environment appears early), fall back to the
+additive `0001_drop_app_meta` migration and accept the history noise. Tracked as a Linear comment on
+DAMN-2 (see [Scaffolding & teardown](#scaffolding--teardown)).
 
 ---
 
@@ -252,7 +274,8 @@ you to read the diff and ask questions before starting the next.**
 - **Verify:** `pnpm verify` fully green (lint + typecheck + all three vitest projects + build);
   `docker compose up` still green.
 
-Then: pre-PR code review (fresh `/code-review`), incorporate findings, open PR.
+Then: pre-PR code review (fresh `/code-review`), incorporate findings, open PR, post the
+cross-issue follow-up comments on DAMN-1 and DAMN-2 (see [Scaffolding & teardown](#cross-issue-follow-up-linear)).
 
 ---
 
@@ -263,7 +286,7 @@ Every temporary artifact carries a `SCAFFOLD(DAMN-26):` comment naming its remov
 
 | Artifact | Why it exists | Removed by |
 |---|---|---|
-| `app_meta` table + baseline-migration seed | one real table for the skeleton round-trip | **DAMN-2** — drops `app_meta` in a follow-up migration alongside the real schema |
+| `app_meta` table + baseline-migration seed | one real table for the skeleton round-trip | **DAMN-2** — regenerates the baseline migration from the real schema (see [Migration history](#migration-history--keep-it-clean)); `app_meta` leaves the schema *and* the migration history |
 | `apps/api/src/meta/*` + `GET /api/meta` | endpoint the skeleton page reads | **DAMN-1 / DAMN-2** — replaced by real recipe endpoints |
 | `apps/web/src/App.tsx` skeleton body (renders the meta row) | proves the round-trip visually | **DAMN-1** — replaced by the real home/recipe-list page |
 | `MetaResponse` in `@dtg/shared` | DTO for `/api/meta` | **DAMN-1 / DAMN-2** |
@@ -271,6 +294,17 @@ Every temporary artifact carries a `SCAFFOLD(DAMN-26):` comment naming its remov
 | _removed here:_ `@dtg/db` `DB_PACKAGE`; `@dtg/shared` `greeting` / `SHARED_PACKAGE`; DAMN-25 placeholder tests | DAMN-25 wiring placeholders | **DAMN-26 (this PR)** |
 
 `GET /api/health` is **not** scaffold — it is a permanent ADR-0010 requirement.
+
+### Cross-issue follow-up (Linear)
+
+The `SCAFFOLD(DAMN-26):` tags are in-code breadcrumbs — only seen by someone already editing that
+file. The proactive reminder goes on the issues that inherit the cleanup, posted **when this PR
+opens** (so they can link the merged design doc and the real migration filenames):
+
+- **DAMN-2** — comment: regenerate the baseline migration (don't add a drop); remove the `app_meta`
+  table/schema; flesh out `packages/db/src/testing.ts` per-test isolation.
+- **DAMN-1** — comment: the skeleton `GET /api/meta`, the `App.tsx` body, and `MetaResponse` are
+  scaffold to replace with the real home/recipe surface.
 
 ---
 
