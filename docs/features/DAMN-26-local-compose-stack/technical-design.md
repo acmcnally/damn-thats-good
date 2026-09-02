@@ -240,7 +240,12 @@ you to read the diff and ask questions before starting the next.**
 - `docker-compose.yml`: `postgres` service only (pinned tag, named volume `pgdata`, `pg_isready`
   healthcheck). `.env.example`.
 - **Verify:** `docker compose up -d postgres`; `pnpm --filter @dtg/db migrate`; `psql` shows
-  `app_meta` with one row. ✅ done (commit).
+  `app_meta` with one row. ✅ done (commit `3396337`).
+
+**Folded in after Phase A** (commit `ac72928`, owner's call): ESLint gains
+`eslint-plugin-simple-import-sort` + `eslint-plugin-unused-imports` — import/export sorting and
+`--fix`-able dead-import removal. Repo-wide `eslint --fix` applied (a few import reorders).
+`@dtg/*` currently sorts with third-party packages; a dedicated group is a later tune if wanted.
 
 ### Phase B — API
 - `apps/api`: replace the placeholder with a real NestJS app — deps `@nestjs/common` `@nestjs/core`
