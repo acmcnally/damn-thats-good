@@ -18,4 +18,7 @@ async function bootstrap(): Promise<void> {
   console.log(`api listening on http://localhost:${port}/api`);
 }
 
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  console.error('api: failed to start', err);
+  process.exit(1);
+});

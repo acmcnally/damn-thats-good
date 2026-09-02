@@ -332,8 +332,26 @@ you to read the diff and ask questions before starting the next.**
 - **Verified:** `pnpm verify` green — 3 vitest projects, 8 tests / 4 files (2 unit + 2 web-component
   + 2 api-component). `docker compose up --build` from a wiped volume still green end to end.
 
-Then: pre-PR code review (fresh `/code-review`), incorporate findings, open PR, post the
-cross-issue follow-up comments on DAMN-1 and DAMN-2 (see [Scaffolding & teardown](#cross-issue-follow-up-linear)).
+### Phase 7 — Pre-PR adversarial review of the diff  ✅ done
+
+`/code-review high` over `main..HEAD` (fresh context; also re-ran lint / typecheck / build / all
+three test tiers / an API smoke-run). No correctness bugs. Four robustness findings, all
+incorporated:
+
+1. **API port coupling** — `API_PORT` was env-configurable but the Vite dev-proxy target, the
+   Compose api healthcheck, and the api service's `API_PORT` value all hardcoded `3000`. Now:
+   `vite.config.ts` loads the repo `.env` and reads `API_PORT`; Compose uses `${API_PORT:-3000}`
+   in both the env and the healthcheck.
+2. **Postgres version in two places** — `packages/db/src/testing.ts` and `docker-compose.yml` each
+   held the `postgres:17.11` literal. Now a `POSTGRES_IMAGE` export in `testing.ts` and
+   cross-reference comments both ways (ADR-0010 byte-identical requirement).
+3. **`void bootstrap()`** had no `.catch` — a startup failure became an unhandled rejection.
+   Now `bootstrap().catch(...)` → logged message + `process.exit(1)`.
+4. **`envFilePath: ['../../.env']`** was cwd-relative (fine for the sanctioned launches, wrong for
+   `node dist/main.js` from the repo root). Now resolved from `import.meta.url`.
+
+Then: open PR, post the cross-issue follow-up comments on DAMN-1 and DAMN-2
+(see [Scaffolding & teardown](#cross-issue-follow-up-linear)).
 
 ---
 

@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
@@ -6,12 +8,14 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MetaModule } from './meta/meta.module';
 
+// Repo-root .env, resolved from this file's location (not cwd) so it works however the
+// process is launched. In containers the file is absent — ConfigModule then just reads
+// process.env, which Compose populates. process.env still wins over the file.
+const repoEnvFile = fileURLToPath(new URL('../../../.env', import.meta.url));
+
 @Module({
   imports: [
-    // envFilePath is resolved from cwd: the repo-root .env during `pnpm dev` (cwd is
-    // apps/api). In containers the file is absent and Compose sets the vars directly —
-    // ConfigModule then just reads process.env.
-    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, envFilePath: ['../../.env'] }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, envFilePath: [repoEnvFile] }),
     DatabaseModule,
     HealthModule,
     MetaModule, // SCAFFOLD(DAMN-26)

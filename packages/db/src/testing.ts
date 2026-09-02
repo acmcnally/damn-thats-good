@@ -18,6 +18,12 @@ export interface TestDb {
 }
 
 /**
+ * The engine the component tier validates against. ADR-0010 requires this be identical to
+ * local / staging / prod — keep in sync with the `postgres` image in docker-compose.yml.
+ */
+export const POSTGRES_IMAGE = 'postgres:17.11';
+
+/**
  * Start a throwaway Postgres container and apply every migration to it once.
  *
  * TODO(DAMN-2): per-test isolation (transaction rollback / truncation between tests).
@@ -25,7 +31,7 @@ export interface TestDb {
  */
 export async function startTestDb(): Promise<TestDb> {
   const container: StartedPostgreSqlContainer = await new PostgreSqlContainer(
-    'postgres:17.11',
+    POSTGRES_IMAGE,
   ).start();
   const url = container.getConnectionUri();
 
