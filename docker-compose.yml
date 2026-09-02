@@ -5,7 +5,9 @@ name: dtg
 services:
   postgres:
     # Pinned exact — ADR-0010 wants the Postgres version identical across local / staging / prod.
-    image: postgres:17.11-alpine
+    # Debian (bookworm) base, not alpine: glibc collation matches what production Postgres
+    # typically runs, and avoids musl/glibc index-collation drift if the base ever changes.
+    image: postgres:17.11
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dtg}

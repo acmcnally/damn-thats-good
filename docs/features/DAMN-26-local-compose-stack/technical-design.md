@@ -42,7 +42,7 @@ edge decision for production (ADR-0004 — this issue only stands up an internal
 | 5 | **Playwright workflow tier + git `pre-push` hook deferred to DAMN-27** | No auth or real multi-step flow exists yet to protect; the health path is covered by the API component test. |
 | 6 | **React 19 + Vite** (latest stable) for `apps/web`; replaces the tsup placeholder | ADR-0005 always had `apps/web`'s "real build is Vite, arriving with DAMN-26". |
 | 7 | **Baseline-migration seed** (the one `app_meta` row is inserted by the baseline migration, not a separate seed script) | Deterministic, one fewer step in the bring-up, and it is all scaffold anyway. |
-| 8 | **Postgres 17**, exact tag pinned in Compose | ADR-0010 wants the Postgres version byte-identical across staging/prod; pin from the start. |
+| 8 | **Postgres 17.11**, exact tag, **Debian base** (`postgres:17.11`, not `-alpine`) | ADR-0010 wants the version byte-identical across staging/prod — pin from the start. Debian/glibc over Alpine/musl: matches typical production Postgres and avoids index-collation drift if the base image family ever changes. The API image (Phase D) follows suit — `node:24-bookworm-slim`, not `-alpine`. |
 
 ### Still open — to confirm during Phase B
 
