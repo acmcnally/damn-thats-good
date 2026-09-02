@@ -1,6 +1,9 @@
-# Local stack. Phase A (DAMN-26) stands up Postgres only; the migrate / api / caddy
-# services are added in Phase D. `docker compose` auto-loads .env from this directory.
+# Local stack. `docker compose up` brings up the whole app; `docker compose up -d postgres`
+# alone backs `pnpm dev` (API + web run on the host). `docker compose` auto-loads .env.
 name: dtg
+
+x-db-url: &db-url
+  DATABASE_URL: postgres://${POSTGRES_USER:-dtg}:${POSTGRES_PASSWORD:-dtg_local_dev_only}@postgres:5432/${POSTGRES_DB:-dtg}
 
 services:
   postgres:
@@ -22,6 +25,54 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-shot: applies pending migrations, then exits (ADR-0010 — never on app boot).
+  migrate:
+    build:
+      context: .
+      target: api
+    working_dir: /app
+    command: ['pnpm', '--filter', '@dtg/db', 'migrate']
+    environment: *db-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      <<: *db-url
+      API_PORT: '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - '${WEB_PORT:-8080}:8080'
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:

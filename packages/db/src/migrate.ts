@@ -28,7 +28,9 @@ if (!connectionString) {
 }
 
 const migrationsFolder = fileURLToPath(new URL('../drizzle', import.meta.url));
-const sql = postgres(connectionString, { max: 1 });
+// `onnotice` silences Postgres NOTICEs the migrator triggers (e.g. "schema drizzle
+// already exists, skipping") — noise, not signal.
+const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
 
 try {
   await migrate(drizzle(sql), { migrationsFolder });

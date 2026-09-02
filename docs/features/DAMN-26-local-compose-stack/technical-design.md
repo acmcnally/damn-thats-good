@@ -288,14 +288,30 @@ you to read the diff and ask questions before starting the next.**
   serves the HTML, `/src/App.tsx` transforms, `/api/meta` + `/api/health` proxy through to the
   NestJS process and return the seeded row / 200. `pnpm verify` green.
 
-### Phase D — Compose stack + orchestration
-- Root `Dockerfile` (multi-stage: shared deps → build → `api` runtime target; `web` target =
-  `caddy:2-alpine` + built bundle + Caddyfile).
-- `docker-compose.yml`: add `migrate` (one-shot, `restart: "no"`, gated on `postgres` healthy),
-  `api` (gated on `migrate` completed + `postgres` healthy), `caddy` (`${WEB_PORT}:8080`, gated on
-  `api`). `infra/Caddyfile`.
-- Root scripts: `dev` (compose up postgres + migrate + `pnpm -r --parallel dev`), `dev:down`.
-- **Verify:** `docker compose up` from clean → `:8080` serves the page end-to-end, `/api/health` 200.
+### Phase D — Compose stack + orchestration  ✅ done (commit)
+- Root **`Dockerfile`** (multi-stage): `base` (node:24-bookworm-slim + corepack) → `deps`
+  (`pnpm install --frozen-lockfile`, cached on manifests) → `build` (`pnpm -r build`) →
+  **`api`** target (`node dist/main.js`) and **`web`** target (`caddy:2` + `apps/web/dist` +
+  Caddyfile). Whole-monorepo copy into the runtime image — no `node_modules` pruning yet
+  (a deliberate later chore). `.dockerignore` keeps host `node_modules` / `dist` / `.env` out.
+- **`apps/api/tsup.config.ts`**: `noExternal` extended to bundle `drizzle-orm` + `postgres` —
+  reached only through the bundled `@dtg/db`, so nothing on `apps/api`'s runtime resolution
+  path would provide them otherwise. `@nestjs/*` / `rxjs` / `reflect-metadata` stay external
+  (direct deps, resolve fine; NestJS core doesn't bundle cleanly). Bundle ~90 KB → ~315 KB.
+- **`docker-compose.yml`**: `migrate` (one-shot, `restart: "no"`, runs `pnpm --filter @dtg/db
+  migrate`, gated on `postgres` healthy) · `api` (gated on `postgres` healthy + `migrate`
+  completed-successfully; own healthcheck via `node -e fetch(/api/health)`) · `web`
+  (`${WEB_PORT}:8080`, gated on `api` healthy). `api` has **no** host port — only Caddy reaches
+  it, on the compose network. `infra/Caddyfile`: `/api/*` → `api:3000`, else static + SPA
+  fallback.
+- `packages/db/src/migrate.ts`: `onnotice: () => {}` to silence Postgres NOTICE noise.
+- Root scripts: `dev` (`compose up -d --wait postgres` + migrate + `pnpm -r --parallel dev`),
+  `dev:down` (`compose down`).
+- **Verified:** `docker compose up --build` from a wiped volume → postgres healthy → migrate
+  runs + exits 0 → api healthy → web up. `:8080/` serves the page, `:8080/api/health` → 200,
+  `:8080/api/meta` → 200 with the freshly-seeded row, hashed bundle serves as `text/javascript`,
+  unknown path → SPA fallback. `pnpm dev` path also verified (`:5173` + proxied `/api`).
+  `pnpm verify` green.
 
 ### Phase E — Tests + docs
 - `packages/db/src/testing.ts` helper; `apps/api` health + meta component tests (`supertest` +

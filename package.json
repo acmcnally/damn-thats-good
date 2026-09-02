@@ -8,6 +8,8 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev": "docker compose up -d --wait postgres && pnpm --filter @dtg/db migrate && pnpm -r --parallel dev",
+    "dev:down": "docker compose down",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",

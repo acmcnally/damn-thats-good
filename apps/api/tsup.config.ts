@@ -31,7 +31,11 @@ export default defineConfig({
   target: 'node24',
   clean: true,
   sourcemap: true,
-  // Workspace packages are consumed as source (ADR-0005); bundle them into the output.
-  noExternal: [/^@dtg\//],
+  // Bundle: the workspace packages (consumed as source — ADR-0005), plus drizzle-orm and
+  // postgres, which are only reached *through* @dtg/db. Once @dtg/db is inlined there is no
+  // package dir on apps/api's resolution path to provide them at runtime, so they must be
+  // in the bundle. @nestjs/*, rxjs and reflect-metadata stay external — they're direct
+  // deps of apps/api and resolve fine, and NestJS core does not bundle cleanly.
+  noExternal: [/^@dtg\//, /^drizzle-orm/, /^postgres$/],
   esbuildPlugins: [swcTransform],
 });

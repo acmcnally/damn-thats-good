@@ -1,0 +1,16 @@
+# The build does a clean `pnpm install` in-container — never copy host node_modules
+# (wrong platform / stale) or build output.
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+
+.git
+.github
+.vscode
+.claude
+*.log
+
+# Secrets never enter an image
+.env
+.env.*
