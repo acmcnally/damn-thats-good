@@ -273,14 +273,20 @@ you to read the diff and ask questions before starting the next.**
   `GET /api/meta` → 200 seeded row; health → 503 `{status:error,db:down}` with Postgres stopped;
   unknown route → 404. `pnpm verify` green (8 tests / 5 files).
 
-### Phase C — Web
-- `apps/web`: remove `tsup`; add `react` `react-dom`, devDeps `vite` `@vitejs/plugin-react`
-  `@types/react` `@types/react-dom`. `index.html`, `src/main.tsx`, `src/App.tsx` (fetches `/api/meta`,
-  renders name + a loading + an error state), `vite.config.ts` (react plugin + `/api` dev-proxy to
-  `:3000`). `dev` = `vite`, `build` = `vite build`, `typecheck` unchanged.
-- tsconfig: add `"jsx": "react-jsx"`.
-- `packages/shared`: drop `greeting` / `SHARED_PACKAGE` (their last consumer, placeholder `apps/web`, is gone).
-- **Verify:** `pnpm --filter @dtg/web dev`; browser `:5173` shows the name from Postgres.
+### Phase C — Web  ✅ done (commit)
+- `apps/web`: `tsup` → Vite + React 19. `react` `react-dom`; devDeps `vite` (catalog) `@vitejs/plugin-react`
+  `@types/react` `@types/react-dom`. `index.html`, `src/main.tsx` (`createRoot` + `StrictMode`),
+  `src/App.tsx` (fetches `/api/meta` via `AbortController`, renders loading / error / data states —
+  `MetaResponse` from `@dtg/shared`). `vite.config.ts`: react plugin + `/api` dev-proxy to `:3000`.
+  Scripts `dev`/`build`/`preview` = `vite` / `vite build` / `vite preview`.
+- `tsconfig.json`: `jsx: react-jsx`, `types: ["vite/client"]`.
+- `pnpm-workspace.yaml`: `vite` added to the catalog (root + `apps/web` both use it).
+- `packages/shared`: `greeting` / `SHARED_PACKAGE` removed (last consumer gone). It is now
+  types-only — its test file was deleted; real testable code (`diffContent`, the parser) arrives
+  with DAMN-2. This drops the test count to 4/2 files until Phase E restores the component tiers.
+- **Verified:** `vite build` → `dist/index.html` + hashed bundle. Dev server on `:5173`: `GET /`
+  serves the HTML, `/src/App.tsx` transforms, `/api/meta` + `/api/health` proxy through to the
+  NestJS process and return the seeded row / 200. `pnpm verify` green.
 
 ### Phase D — Compose stack + orchestration
 - Root `Dockerfile` (multi-stage: shared deps → build → `api` runtime target; `web` target =

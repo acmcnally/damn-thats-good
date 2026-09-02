@@ -18,13 +18,3 @@ export interface MetaResponse {
   /** ISO 8601 timestamp. */
   seededAt: string;
 }
-
-/**
- * SCAFFOLD(DAMN-26): DAMN-25 placeholders, still imported by the placeholder
- * `apps/web`. Removed in Phase C when the real web app replaces it.
- */
-export const SHARED_PACKAGE = '@dtg/shared';
-
-export function greeting(name: string): string {
-  return `Hello from ${name}`;
-}
