@@ -1,0 +1,25 @@
+# Local stack. Phase A (DAMN-26) stands up Postgres only; the migrate / api / caddy
+# services are added in Phase D. `docker compose` auto-loads .env from this directory.
+name: dtg
+
+services:
+  postgres:
+    # Pinned exact — ADR-0010 wants the Postgres version identical across local / staging / prod.
+    image: postgres:17.11-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dtg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dtg_local_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-dtg}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "${POSTGRES_USER:-dtg}" -d "${POSTGRES_DB:-dtg}"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

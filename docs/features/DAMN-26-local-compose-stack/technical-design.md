@@ -233,12 +233,14 @@ you to read the diff and ask questions before starting the next.**
 ### Phase A — Data layer
 - `packages/db`: add `drizzle-orm`, `postgres`; devDep `drizzle-kit`. `drizzle.config.ts`,
   `src/schema.ts` (`appMeta`), `src/client.ts` (`createDb(url)` factory — no import-time singleton, so
-  tests inject their own url), `src/migrate.ts` (the one-shot runner), baseline migration in
-  `drizzle/`. Drop `DB_PACKAGE`; `src/index.ts` re-exports schema + client.
+  tests inject their own url), `src/migrate.ts` (the one-shot runner, run by Node directly —
+  no local imports), baseline migration in `drizzle/`. `src/index.ts` adds schema + client
+  exports; `DB_PACKAGE` stays one more phase (the placeholder `apps/api` still imports it) —
+  removed in Phase B.
 - `docker-compose.yml`: `postgres` service only (pinned tag, named volume `pgdata`, `pg_isready`
   healthcheck). `.env.example`.
 - **Verify:** `docker compose up -d postgres`; `pnpm --filter @dtg/db migrate`; `psql` shows
-  `app_meta` with one row.
+  `app_meta` with one row. ✅ done (commit).
 
 ### Phase B — API
 - `apps/api`: replace the placeholder with a real NestJS app — deps `@nestjs/common` `@nestjs/core`
