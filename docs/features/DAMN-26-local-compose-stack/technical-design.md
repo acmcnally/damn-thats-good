@@ -46,21 +46,29 @@ edge decision for production (ADR-0004 — this issue only stands up an internal
 
 ### Still open — to confirm during Phase B
 
-**API build toolchain & decorator metadata.** NestJS DI depends on `emitDecoratorMetadata`, which
-esbuild (and therefore the current `tsup` config) does **not** emit. Options:
+**API build toolchain & decorator metadata — RESOLVED in Phase B.** NestJS DI depends on
+`emitDecoratorMetadata`, which esbuild (and therefore `tsup`) does not emit.
 
-- **(a) Keep `tsup`, add an SWC transform** (`@swc/core` + an esbuild/unplugin-swc plugin) so decorated
-  files get metadata while esbuild still bundles. Keeps the ADR-0005 "apps bundle `@dtg/*` source"
-  model and one bundler family. *Recommended* — try this first.
-- **(b) `nest build`** (tsc builder, emits metadata natively). Simple and documented, but tsc does not
-  bundle, so `@dtg/db` / `@dtg/shared` resolve at runtime — the Docker image then needs the workspace
-  packages present as resolvable modules (`pnpm deploy`, or copy the pruned workspace). Would need a
-  one-line update to ADR-0005's scaffold note.
+**Landed on option (a): `tsup` + a small inline esbuild plugin that routes every `.ts` through
+`@swc/core` (`transformFile`) before esbuild bundles.** SWC config in `apps/api/.swcrc`
+(`legacyDecorator` + `decoratorMetadata`). The plugin sets `resolveDir` per file — `unplugin-swc`'s
+own esbuild adapter did **not** (it left esbuild unable to resolve `@dtg/*`), so the plugin is ~12
+hand-written lines instead. ADR-0005 unaffected: the API still bundles `@dtg/*` from source.
 
-Vitest for the `component-api` project uses `unplugin-swc` regardless (the NestJS "Vitest" recipe) —
-this is independent of the build choice. I'll land whichever build path actually integrates cleanly and
-record it in a Phase B commit message + an issue comment; flag it here if (b) turns out necessary
-since it touches ADR-0005.
+Knock-on findings:
+- **`nest build` / `nest start` don't fit this repo.** Both emit file-per-file ESM with the
+  source's extensionless imports (`./app.module`), which Node's ESM loader rejects
+  (`ERR_MODULE_NOT_FOUND`). Bundling sidesteps it entirely.
+- So **dev also uses tsup** — `tsup --watch --onSuccess "node dist/main.js"`. Full-restart on
+  change (same as `nest start --watch` would give), ~90 ms rebuild.
+- **`@nestjs/cli` dropped.** Only `nest g` scaffolding needed it, and its dependency tree is large.
+  Modules are hand-authored (also better for the "see what each file does" goal). `pnpm add -D
+  @nestjs/cli` any time if `nest g` is wanted.
+- Phase E's `component-api` vitest project will use the same SWC path (an `unplugin-swc` vite plugin,
+  or the inline approach) — TBD in Phase E, independent of this.
+
+Net `apps/api` toolchain deps: `@swc/core` + `tsup` (+ `typescript`, `@types/node`). No `@nestjs/cli`,
+no `unplugin-swc`, no `nest-cli.json`.
 
 ---
 
@@ -154,26 +162,29 @@ NestJS, global prefix `/api`.
 | `GET /api/health` | **public, permanent** | `200 {"status":"ok","db":"up"}` / `503 {"status":"error","db":"down"}` | `SELECT 1` via Drizzle with a short timeout. Designed to stay outside any auth guard added in DAMN-31/DAMN-1 (uptime monitor hits it unauthenticated — ADR-0010). Never leaks version/build detail. |
 | `GET /api/meta` | public *(scaffold)* | `200 {"name":"Damn That's Good","seededAt":"…"}` | Reads the seeded `app_meta` row via Drizzle. The endpoint the skeleton page renders. **SCAFFOLD** — removed by DAMN-1/2. |
 
-Shared types — `packages/shared/src/`: `HealthResponse`, `MetaResponse` DTOs, imported by both `apps/api`
-(response typing) and `apps/web` (fetch typing). This is the first real content in `@dtg/shared` and
-lets the placeholder `greeting` / `SHARED_PACKAGE` exports go.
+Shared types — `packages/shared/src/`: `HealthResponse`, `MetaResponse` DTOs, imported by `apps/api`
+(response typing) now and `apps/web` (fetch typing) in Phase C. First real content in `@dtg/shared`.
 
-Nest module layout:
+Nest module layout (as built):
 
 ```
-apps/api/src/
-  main.ts              # bootstrap: create app, setGlobalPrefix('api'), listen(API_PORT)
-  app.module.ts        # imports ConfigModule (global), DrizzleModule, HealthModule, MetaModule
-  config/              # @nestjs/config schema + validation (DATABASE_URL, API_PORT)
-  drizzle/
-    drizzle.module.ts  # provides DRIZZLE token (a configured postgres-js + drizzle client)
-    drizzle.service.ts # onModuleDestroy closes the pool
-  health/
-    health.controller.ts
-    health.service.ts
-  meta/                # SCAFFOLD(DAMN-26)
-    meta.controller.ts
-    meta.service.ts
+apps/api/
+  .swcrc               # SWC transform config (legacyDecorator + decoratorMetadata)
+  tsup.config.ts       # tsup + inline SWC esbuild plugin (see build-toolchain note)
+  src/
+    main.ts            # bootstrap: create app, setGlobalPrefix('api'), enableShutdownHooks, listen
+    app.module.ts      # ConfigModule (global, validated, envFilePath ../../.env), Database/Health/Meta
+    config/env.ts      # validateEnv(): DATABASE_URL (string), API_PORT (int) — fails boot if bad
+    database/
+      database.service.ts  # @Injectable — one createDb() pool; onModuleDestroy closes it
+      database.module.ts    # @Global — provides + exports DatabaseService
+    health/
+      health.controller.ts  # GET /api/health → 200 | 503 (ServiceUnavailableException)
+      health.service.ts      # execute(sql`select 1`) → {status, db}
+      health.service.test.ts # unit (mocked db)
+    meta/                     # SCAFFOLD(DAMN-26)
+      meta.controller.ts      # GET /api/meta
+      meta.service.ts         # select().from(appMeta).limit(1)
 ```
 
 ---
@@ -247,13 +258,20 @@ you to read the diff and ask questions before starting the next.**
 `--fix`-able dead-import removal. Repo-wide `eslint --fix` applied (a few import reorders).
 `@dtg/*` currently sorts with third-party packages; a dedicated group is a later tune if wanted.
 
-### Phase B — API
-- `apps/api`: replace the placeholder with a real NestJS app — deps `@nestjs/common` `@nestjs/core`
-  `@nestjs/platform-express` `@nestjs/config` `reflect-metadata` `rxjs`; the modules under `src/`
-  above. Resolve the build-toolchain open item. `dev` script = `nest start --watch`.
-- `packages/shared`: add `HealthResponse` / `MetaResponse`; drop `greeting` / `SHARED_PACKAGE`.
-- **Verify:** `pnpm --filter @dtg/api dev` (against Phase A's Postgres); `curl localhost:3000/api/health`
-  → 200; `curl localhost:3000/api/meta` → seeded row.
+### Phase B — API  ✅ done (commit)
+- `apps/api`: real NestJS app — `@nestjs/common` `@nestjs/core` `@nestjs/platform-express`
+  `@nestjs/config` `reflect-metadata` `rxjs` `drizzle-orm`. Modules: `config/env`, `database/`
+  (`DatabaseService` — one pool, closed on shutdown), `health/` (`GET /api/health`, `SELECT 1`,
+  200/503), `meta/` (`GET /api/meta`, reads the seeded row — SCAFFOLD). `main.ts` sets the `/api`
+  prefix + shutdown hooks. Build toolchain resolved above; `dev` = `tsup --watch --onSuccess`.
+- `packages/shared`: added `HealthResponse` / `MetaResponse` DTOs (imported by api now, web in C).
+  `greeting` / `SHARED_PACKAGE` kept until Phase C (placeholder `apps/web` still imports them).
+- `packages/db`: `DB_PACKAGE` removed (last consumer gone).
+- DAMN-25 placeholder tests removed (`apps/api/src/main.test.ts`, `runtime.component.test.ts`);
+  `health.service` unit test added (mocked db, ok/up + error/down paths).
+- **Verified:** built API + `pnpm dev` both serve `GET /api/health` → 200 `{status:ok,db:up}` and
+  `GET /api/meta` → 200 seeded row; health → 503 `{status:error,db:down}` with Postgres stopped;
+  unknown route → 404. `pnpm verify` green (8 tests / 5 files).
 
 ### Phase C — Web
 - `apps/web`: remove `tsup`; add `react` `react-dom`, devDeps `vite` `@vitejs/plugin-react`
@@ -261,6 +279,7 @@ you to read the diff and ask questions before starting the next.**
   renders name + a loading + an error state), `vite.config.ts` (react plugin + `/api` dev-proxy to
   `:3000`). `dev` = `vite`, `build` = `vite build`, `typecheck` unchanged.
 - tsconfig: add `"jsx": "react-jsx"`.
+- `packages/shared`: drop `greeting` / `SHARED_PACKAGE` (their last consumer, placeholder `apps/web`, is gone).
 - **Verify:** `pnpm --filter @dtg/web dev`; browser `:5173` shows the name from Postgres.
 
 ### Phase D — Compose stack + orchestration
@@ -273,9 +292,10 @@ you to read the diff and ask questions before starting the next.**
 - **Verify:** `docker compose up` from clean → `:8080` serves the page end-to-end, `/api/health` 200.
 
 ### Phase E — Tests + docs
-- `packages/db/src/testing.ts` helper; `apps/api` health + meta component tests; `apps/web`
-  `App.component.test.tsx` (RTL + MSW); `health.service` unit test. Remove DAMN-25 placeholder tests.
-  Wire `unplugin-swc` into the `component-api` vitest project.
+- `packages/db/src/testing.ts` helper; `apps/api` health + meta component tests (`supertest` +
+  Testcontainers); `apps/web` `App.component.test.tsx` (RTL + MSW). Wire SWC into the `component-api`
+  vitest project so decorator metadata works there (an `unplugin-swc` vite plugin, or reuse the
+  inline transform). (`health.service` unit test + placeholder-test removal already done in Phase B.)
 - Docs: `README.md` (Getting started → real `pnpm dev` / `docker compose up`; drop the "placeholder
   scaffolds" line), `CLAUDE.md` (Commands + Stack notes), ADR touch-ups below.
 - **Verify:** `pnpm verify` fully green (lint + typecheck + all three vitest projects + build);
