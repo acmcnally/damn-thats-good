@@ -51,6 +51,8 @@ pnpm verify   # lint + typecheck + test + build, across every workspace
 
 Individual gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. `pnpm format` applies Prettier.
 
+A `pre-push` hook runs the two fast test tiers (`pnpm verify:fast`, ~4 s) — it's wired automatically on `pnpm install`. `git push --no-verify` skips it. CI (GitHub Actions, `.github/workflows/ci.yml`) runs the full `pnpm verify` on every PR and is required to merge; a merge to `main` also publishes the `api` and `web` container images to GHCR (ADR-0010, ADR-0012).
+
 ### Running it locally
 
 ```bash

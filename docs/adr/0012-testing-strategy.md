@@ -27,9 +27,9 @@ Constraints and forces:
 
 The real question for any test is *what does it need to run* — a browser? a real Postgres? — not which tier it sits in.
 
-- **Every build, watch mode, and the pre-push hook (local):** unit + web component. These need neither Docker nor a browser and must stay fast — target well under ~20 s at pre-push. Enforced by a git `pre-push` hook.
+- **Every build, watch mode, and the pre-push hook (local):** unit + web component. These need neither Docker nor a browser and must stay fast — target well under ~20 s at pre-push. **Realized in DAMN-27:** `pnpm verify:fast` (`vitest run --project unit --project component-web`, ~4 s), wired as a `pre-push` hook via `core.hooksPath = .githooks` (no husky — set by the root `prepare` script). `git push --no-verify` bypasses it.
 - **`pnpm verify` — one local command, and the same job in CI:** all three tiers, including API component (Testcontainers Postgres) and the Playwright workflow suite. Contributors run `pnpm verify` locally before opening or updating a PR. **The local run is the primary gate; CI is the backstop** — the aim is that CI rarely finds anything the developer could have seen locally.
-- **CI on PR:** runs the `verify` equivalent. Required to merge.
+- **CI on PR (DAMN-27):** the `verify` job runs `pnpm verify` on `ubuntu-latest`, required to merge to `main`. The Playwright tier is not in `pnpm verify` yet — it arrives with DAMN-29, which will also sort out how CI stands up a stack for it.
 - **Before deploy:** the workflow suite runs again against the built artifacts, after migrations and before cutover — a hard gate on the deploy pipeline (ADR-0010). A green PR is necessary but not sufficient; the deploy re-checks end-to-end against exactly what is shipping.
 
 ### Tooling
