@@ -57,7 +57,9 @@ jobs:
 
       # api and web share the Dockerfile's base -> deps -> build chain. Building
       # them as two sequential steps in one job lets BuildKit reuse those stages
-      # within the run; the shared `scope=build` gha cache carries them between runs.
+      # within the run. No cross-run layer cache: type=gha spends ~50s/run
+      # exporting for ~25s of import saving at these image sizes (measured on
+      # DAMN-27 PR #3), and this job is off the critical path anyway.
       - name: Metadata (api)
         id: meta-api
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -76,8 +78,6 @@ jobs:
           labels: ${{ steps.meta-api.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=gha,scope=build
-          cache-to: type=gha,mode=max,scope=build
 
       - name: Metadata (web)
         id: meta-web
@@ -97,5 +97,3 @@ jobs:
           labels: ${{ steps.meta-web.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=gha,scope=build
-          cache-to: type=gha,mode=max,scope=build

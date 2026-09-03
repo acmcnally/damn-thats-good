@@ -139,14 +139,9 @@ PR body and flagged on DAMN-28.
 
 ### Caching
 
-- **pnpm store** — `setup-node`'s `cache: pnpm`, keyed on `pnpm-lock.yaml` hash. Content-addressed: a stale hit is only slower, never wrong.
-- **Docker layers** — `type=gha, mode=max, scope=build` (one shared scope for both targets). `mode=max` exports the intermediate `deps` and `build` stages — the expensive ones — so a lockfile-unchanged run skips `pnpm install` entirely. Two small Node images + the pnpm cache stay well under the 10 GB per-repo ceiling, so `mode=min`'s ceiling rationale doesn't apply.
+- **pnpm store** — `setup-node`'s `cache: pnpm`, keyed on `pnpm-lock.yaml` hash. Content-addressed: a stale hit is only slower, never wrong. **Measured on PR #3: `verify` 56 s → 38 s cache-warm.** Kept.
+- **Docker layers** — **not cached.** Measured on PR #3: `type=gha, mode=max` spends ~50 s/run *exporting* the cache for ~25 s of import saving at these image sizes — net negative — and `build-images` is off the critical path anyway (`verify` is the required check; the `main` build is post-merge). Removed `cache-from`/`cache-to`; the job builds cold in ~80 s.
 - **Testcontainers Postgres image** — not cached. `docker pull postgres:17.11` off Docker Hub's CDN is ~15 s; the `docker save`/`load`-through-Actions-cache alternative is fragile and not obviously faster.
-
-First-PR run times get read off the actual runs; if the Docker layer cache
-turns out not to pay for these image sizes, dropping `cache-from/to` is a
-one-line follow-up. The cache is *correctly configured* now, so that measurement
-is meaningful.
 
 ## The pre-push hook (ADR-0012 local-first half)
 
@@ -235,8 +230,8 @@ gymnastics; the real runner is the honest test.
 |---|---|---|---|
 | 1 | Trigger model | `push:[main]` + `pull_request` | no double-runs; draft PR covers pre-review feedback; owner-approved narrowing of "every push / PR" |
 | 2 | `build-images` vs `verify` | `needs: verify` | a CI-caught regression must not publish `:latest` (DAMN-28 auto-deploys it) |
-| 3 | api/web build structure | single job, sequential, shared `type=gha` scope | share the `deps`+`build` stages instead of doubling them |
-| 4 | Docker layer cache mode | `mode=max`, shared `scope=build` | exports the expensive intermediate stages; well under the 10 GB ceiling |
+| 3 | api/web build structure | single job, sequential | BuildKit reuses the `deps`+`build` stages within the run instead of a matrix doubling them |
+| 4 | Docker layer cache | none (measured net-negative on PR #3) | `mode=max` export cost (~50 s) exceeds import saving (~25 s) for these image sizes; job is off the critical path |
 | 5 | GHCR image naming | suffixed `<repo>-{api,web}` | matches frozen Linear scope; DAMN-28 depends on it |
 | 6 | `latest` tag now? | yes, on `main` builds | DAMN-28 needs a moving tag; `sha-<40hex>` stays canonical |
 | 7 | Hook mechanism | native `core.hooksPath` + `prepare` | zero-dep; husky is a swap-in when `lint-staged` is wanted |
@@ -249,8 +244,8 @@ gymnastics; the real runner is the honest test.
 
 ## Risks
 
-- **First green run needs iteration** — YAML / action-version / permission mistakes surface only on the runner. Mitigated by the draft-PR loop.
-- **`type=gha` cache overhead may still not pay** for images this small even at `mode=max`. Now at least measurable; dropping it is one line.
+- **First green run needs iteration** — YAML / action-version / permission mistakes surface only on the runner. Mitigated by the draft-PR loop. (PR #3 went green on the first run.)
+- **`build-images` builds cold every run** (~80 s) now that the Docker layer cache is gone. Acceptable — it's off the critical path. If it ever matters, `cache-from: type=registry` off the last published image is the lever, not `type=gha`.
 - **`prepare` running `git config` in odd contexts** (CI, tarball installs, no `.git`). Mitigated by `|| true`.
 - **Emergency-merge lockout** — `enforce_admins` + required `verify` means no merge during a GHA outage without toggling protection. Accepted.
 - **GHA minutes** — public repo = unlimited GitHub-hosted minutes; the only concern is wall-clock, addressed by caching.
