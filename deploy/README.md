@@ -159,7 +159,7 @@ nested PTYs (`ssh → pct enter → sudo -iu → nano`) misbehaves; do it
 non-interactively:
 
 ```sh
-pw=$(openssl rand -base64 24)
+pw=$(openssl rand -hex 24)     # hex only — base64 can emit / + = which break the postgres:// URL
 grep -v '^POSTGRES_PASSWORD=' .env > .env.tmp && echo "POSTGRES_PASSWORD=$pw" >> .env.tmp && mv .env.tmp .env
 chmod 600 .env
 echo "SAVE TO PASSWORD MANAGER (DTG staging Postgres): $pw"
@@ -231,15 +231,16 @@ default policy uses) exactly as-is for now:
 `action` **must** be `accept`, not `check` — a tagged source can't do
 interactive reauth. Save.
 
-Then create a **Tailscale auth key** (Settings → Keys → Generate auth key):
+Then create a **Tailscale OAuth client** (Settings → **Trust credentials** →
+Generate OAuth client):
 
-- **Reusable** ✔ — CI runs many times
-- **Ephemeral** ✔ — each run's node auto-removes
+- **Scope:** write access to auth keys (the only scope `tailscale/github-action` needs)
 - **Tags:** `tag:ci`
 
-Save the key for section 9. (Auth keys expire — 90 days max — so this is a
-recurring regenerate-and-update chore. An OAuth client, if you can find it under
-Settings → Keys, doesn't expire; switching later is a ~2-line workflow change.)
+Save the **client ID** and **secret** for section 9. (An OAuth client doesn't
+expire. A tagged reusable+ephemeral auth key is the fallback if OAuth isn't
+available on your plan — it expires every ≤90 days and needs periodic
+regeneration; the job change is `oauth-client-id`/`oauth-secret` → `authkey`.)
 
 ### 8. Tailscale on the box (`[lxc-root]`)
 
@@ -267,14 +268,17 @@ From here on you can `ssh deploy@dtg-staging` straight from your workstation
 
 Repo → Settings → **Environments → New environment** → `staging`.
 
-- **Protection rule:** Deployment branches and tags → **Selected branches** → `main`.
-  (Defense in depth on top of the job's own `if: main`.)
+- **Protection rule (required):** Deployment branches and tags → **Selected
+  branches** → `main`. This is load-bearing, not optional: a `workflow_dispatch`
+  of the deploy job from a feature branch is skipped by the job's `if:` guard,
+  but this rule is the platform-level backstop for the tailnet join + SSH.
 - On that environment:
 
   | Name | Kind | Value |
   |---|---|---|
   | `STAGING_HOST` | **variable** | `dtg-staging` (the short MagicDNS name) |
-  | `TS_AUTHKEY` | **secret** | the auth key from section 7 |
+  | `TS_OAUTH_CLIENT_ID` | **secret** | from section 7 |
+  | `TS_OAUTH_SECRET` | **secret** | from section 7 |
 
 Environment secrets reach only the job that declares `environment: staging`
 (the deploy job) — `verify` and `build-images` never see them.
@@ -292,13 +296,16 @@ wired, then tested end to end (6e), then the PR opens.
 
 ## After DAMN-28 merges
 
-On the box, switch the checkout back to `main` — once:
+On the box, once:
 
 ```sh
 cd ~/dtg && git checkout main && git pull --ff-only
 ```
 
-From then on `deploy.sh` and the CI job operate on `main`.
+The CI deploy job then `git checkout --detach <commit>`s each deploy, so the box
+sits in **detached HEAD** at the last deployed commit — expected for a deploy
+target. For a **manual** `deploy.sh` run, `git checkout main && git pull` first
+to pick up the newest compose/script, then `./deploy/deploy.sh <tag>`.
 
 ## On every LXC rebuild during the shakeout
 

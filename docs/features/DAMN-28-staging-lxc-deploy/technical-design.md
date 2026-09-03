@@ -57,7 +57,7 @@ The interface both sides build to. The **box** (owner-provisioned):
 | Docker **from Docker's official apt repo** | `docker-ce` + `docker-compose-plugin`. **Not** Debian's packages — those give old `docker-compose` v1 with **no `--wait` flag**, which `deploy.sh` needs. |
 | A `deploy` user | non-root, in the `docker` group |
 | GHCR packages already public | verify `docker pull ghcr.io/acmcnally/damn-thats-good-api:latest` works **unauthenticated** before starting — else `deploy.sh` 401s |
-| `~/dtg/` — a clone of this repo | `git pull --ff-only`ed by the deploy step; only `deploy/` is used; **never hand-edit tracked files here** |
+| `~/dtg/` — a clone of this repo | the deploy step `git fetch`es + `checkout --detach`s the exact commit; only `deploy/` is used; **never hand-edit tracked files here** |
 | `~/dtg/deploy/.env` | real values, `chmod 600`, gitignored (`.env` pattern matches at any depth), canonical copy in the password manager |
 | Rootfs sized for image accumulation | fat images (DAMN-26 deferred trimming) × every deploy; `deploy.sh` prunes, but budget ~10–20 GB |
 | NTP / time sync | LetsEncrypt (via `tailscale serve`) needs correct time |
@@ -101,72 +101,35 @@ whole deployment definition.
 
 ## `deploy/deploy.sh`
 
-```sh
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")"
-
-TAG="${1:-latest}"          # ./deploy.sh                -> latest
-export TAG                  # ./deploy.sh sha-<40hex>    -> pin / roll back
-
-dc() { docker compose --env-file .env "$@"; }
-
-dc pull
-dc up -d postgres --wait                     # DB up + healthy
-dc run --rm migrate                          # explicit; set -e aborts on failure
-dc up -d --wait                              # api + web to the new tag
-
-# S9: assert the running api is actually the tag we asked for
-running="$(dc ps --format '{{.Image}}' api | tail -n1)"
-case "$running" in
-  *":${TAG}"|*"-api:${TAG}") : ;;
-  *) echo "deploy: api is running '$running', expected tag '$TAG'" >&2; exit 1 ;;
-esac
-
-docker image prune -f                        # S6: fat images, constrained box
-dc ps
-```
+`pull → up postgres (--wait --wait-timeout) → run --rm migrate → up -d --wait api web`,
+then two guards and a prune. See the file for the exact script.
 
 - **Migrations run as an explicit step before `api` is recreated** (ADR-0010). `set -e` + `run --rm migrate` → a bad migration aborts with old `api`/`web` still serving.
-- **Tag assertion (S9)** — a stale checkout + a healthy old container would otherwise leave staging silently frozen while the health check passes.
+- **`--wait-timeout`** on both `up` calls — a crash-looping service would otherwise hang the deploy (and the CI runner) indefinitely.
+- **Image-digest assertion** — the running `api` container's image id must equal what `ghcr.io/…-api:${TAG}` resolves to after the pull. Compares *digests*, not the tag string (a tag-string check is a no-op when `TAG=latest`). Catches a partial pull / stale checkout / no-op recreate that would freeze staging while the health check still passes.
+- **On-box end-to-end health check** — `curl` through `web`(Caddy)→`api`, port read from `docker compose port web 8080` (authoritative; immune to `.env` quoting / CRLF), not by parsing `.env`.
 - **Rollback** = `./deploy.sh sha-<older>`. Runbook caveats: rolling the image back does **not** roll migrations back (fine for the skeleton; a real concern post-DAMN-2); and **rollback across the DAMN-2 baseline-migration regeneration is unsupported** (breaks `__drizzle_migrations` hashes).
 - Idempotent: same `TAG` → `up -d` recreates nothing, `migrate` reports "up to date".
 
 ## The `deploy-staging` CI job
 
-Appended to `.github/workflows/ci.yml`:
+Appended to `.github/workflows/ci.yml` (see the file for the exact YAML):
 
-```yaml
-  deploy-staging:
-    needs: build-images
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions: {}                 # N1 — needs nothing from the token
-    concurrency:
-      group: deploy-staging
-      cancel-in-progress: false     # queue; never kill a deploy mid-compose
-    steps:
-      - uses: tailscale/github-action@<sha>   # SHA-pinned, like DAMN-27's actions
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-      - name: Deploy + verify (on the box)
-        run: |
-          tailscale ssh "deploy@${{ vars.STAGING_HOST }}" '
-            set -e
-            cd ~/dtg && git pull --ff-only
-            ./deploy/deploy.sh sha-'"${{ github.sha }}"'
-            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
-              "http://127.0.0.1:${WEB_PORT:-8080}/api/health" | grep -q '"'"'"status":"ok"'"'"'
-          '
-```
-
-- **Health check runs on the box** over the same SSH channel (B1) — no `:443` ACL, no SOCKS-proxy dance. It exercises `web`(Caddy)→`api`; it does **not** exercise `tailscale serve`/TLS (that's D3, and D3 is not auth-critical until DAMN-1).
-- **`tailscale ssh`, not plain `ssh`** — in the runner's userspace-networking mode plain `ssh` needs a `ProxyCommand` through `localhost:1055`; `tailscale ssh` dials via netstack directly (S2).
-- **Job in `ci.yml`, not a `workflow_run` file** — `needs: build-images` gives correct ordering on the same commit with `github.sha` in hand, all in one visible run.
-- **Not a required status check** — a deploy failure shouldn't retro-block an already-merged commit. Surfaces as a red job on `main`; the owner must have GitHub "Actions failure" notifications on (runbook). Real alerting is ADR-0010 observability / prod-scoped.
-- `ci.yml`'s workflow-level `concurrency` already serializes `main` runs, so the deployed SHA advances monotonically — but a superseded pending run is cancelled, so **not every `main` commit gets images built** (note for DAMN-30's promote step: don't assume every SHA has a published image).
+- `needs: build-images`; `environment: staging`; `permissions: {}`; job-level `concurrency: deploy-staging` with `cancel-in-progress: false`.
+- **`if: github.ref == 'refs/heads/main' && (push || workflow_dispatch)`** — `main` only, for *both* triggers. A `workflow_dispatch` from a feature branch is skipped here; the `staging` environment's "Selected branches → main" rule is the platform-level backstop (**required**, not decorative — it's what stops an off-branch dispatch from doing the tailnet join + SSH).
+- `on: workflow_dispatch: {}` added at the workflow level — a manual "redeploy `:latest` to staging" lever.
+- **Auth:** `tailscale/github-action` (SHA-pinned) with `oauth-client-id` / `oauth-secret` (Tailscale OAuth client scoped to `tag:ci`). Fallback if OAuth isn't available on the plan: a tagged reusable+ephemeral `authkey` (expires ≤90 days).
+- **Deploy step** (`STAGING_HOST` / `DEPLOY_SHA` / `TAG` via `env:`, not templated into the shell):
+  ```
+  tailscale ssh "deploy@$STAGING_HOST" \
+    "cd ~/dtg && git fetch --quiet origin main && git checkout --quiet --detach $DEPLOY_SHA && ./deploy/deploy.sh $TAG"
+  ```
+  `TAG` = `sha-<github.sha>` on push, `latest` on dispatch.
+- **`git checkout --detach $DEPLOY_SHA`, not `git pull`** — main runs *queue* (workflow-level `concurrency`, `cancel-in-progress: false`), so run A's deploy step would `git pull` the tree of a *later* commit B while deploying `sha-A` images. Checking out the exact commit makes each deploy atomic: that commit's `compose.yaml`/`deploy.sh` against that commit's images. The box is left in detached HEAD (fine for a deploy target).
+- **Health check is inside `deploy.sh`** (see above) — the CI job is just "run `deploy.sh`". On-box over the SSH channel (B1); exercises `web`(Caddy)→`api`, **not** `tailscale serve`/TLS (D3, not auth-critical until DAMN-1).
+- **`tailscale ssh`, not plain `ssh`** — the runner is in userspace-networking mode; plain `ssh` needs a `ProxyCommand`, `tailscale ssh` dials via netstack (S2).
+- **Not a required status check** — a deploy failure shouldn't retro-block an already-merged commit. Surfaces as a red job on `main`; the owner needs GitHub "Actions failure" notifications on. Real alerting is ADR-0010 / prod-scoped.
+- **Queued, not cancelled:** because main runs queue (not cancel), a rapid A→B does not skip B's image build — but the deployed SHA still advances monotonically once both runs finish. (DAMN-30's promote step should still not assume *every* historical SHA has an image, since a PR that never triggered a `main` build won't.)
 
 ## Division of labor & sequencing
 
@@ -204,7 +167,7 @@ check are untouched.
 | # | Decision | Choice | Why |
 |---|---|---|---|
 | 1 | deploy in `ci.yml` vs `workflow_run` file | job in `ci.yml`, `needs: build-images` | ordering, one visible run, `github.sha` in hand |
-| 2 | box gets `deploy/` via | `git clone` + `git pull --ff-only` | one dir, consistent with `main` |
+| 2 | box gets `deploy/` via | `git clone` once; the deploy step `git fetch` + `checkout --detach <sha>` | one dir; each deploy is atomic (that commit's compose + that commit's images) |
 | 3 | LXC flavor | **unprivileged**, VM fallback, privileged off the table | breakout containment; LAN exposure + shared box |
 | 4 | `.env` location | `~/dtg/deploy/.env`, gitignored | one directory |
 | 5 | `web` binding | `${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080` | loopback default; `.env` opens to LAN; prod-reuse clean |
@@ -220,7 +183,8 @@ check are untouched.
 - **Unprivileged Docker-in-LXC** — the real risk (issue's own words). Mitigation: 6b is a hand-run shakeout; named-volume `pgdata` sidesteps the worst UID friction; VM fallback if it truly won't go.
 - **`tailscale/github-action` + OAuth + ACL + `tailscale ssh` from an ephemeral node** — first-time, less-trodden. 6c gates on it working before 6d is written. Fallback: SSH key + `ProxyCommand`.
 - **Deploy races the image publish** — `needs: build-images`, deploys the exact `sha-${{ github.sha }}`, not `latest`.
-- **Silent stale staging** — `--ff-only` fails loudly; tag assertion (S9) catches "old container still healthy".
+- **Silent stale staging** — `git checkout --detach` fails loudly on a dirty tree; the image-digest assertion catches "old container still healthy".
+- **`POSTGRES_PASSWORD` must be URL-safe** — it's interpolated unencoded into the `postgres://` `DATABASE_URL`; a `/` `+` or `=` breaks parsing and the `migrate` step throws (uncaught — `migrate.ts` builds the client before its try block). Runbook uses `openssl rand -hex 24`.
 - **Migration/rollback asymmetry** and **baseline-regeneration rollback** — documented in the runbook, not solved here (ADR-0007 / DAMN-2).
 - **`X-Forwarded-Proto` through `tailscale serve`→Caddy→api** — latent; no auth to break yet; tracked as a DAMN-1 follow-up (`trusted_proxies` + `trust proxy`).
 - **ADR-0004 not pre-decided** — Tailscale on the private CI→box path is admin-access use ADR-0004 already assumes; the public Cloudflare-vs-Funnel choice (DAMN-30) is untouched.

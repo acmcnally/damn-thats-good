@@ -14,28 +14,36 @@ cd "$(dirname "$0")"
 
 TAG="${1:-latest}"
 export TAG
+API_IMAGE="ghcr.io/acmcnally/damn-thats-good-api:${TAG}"
 
 dc() { docker compose --env-file .env "$@"; }
 
 echo "==> deploy TAG=$TAG"
 dc pull
-dc up -d postgres --wait
+dc up -d postgres --wait --wait-timeout 60
 dc run --rm migrate
-dc up -d --wait api web    # named explicitly so `up` doesn't re-run the migrate service
+dc up -d --wait --wait-timeout 120 api web # named so `up` doesn't re-run migrate
 
-# Fail loudly if api isn't actually on the requested tag — a stale checkout plus
-# a healthy old container would otherwise leave staging silently frozen.
+# Fail loudly if api isn't actually the image we just pulled — a stale checkout,
+# a partial pull, or a no-op recreate would otherwise freeze staging silently.
+# Compare image digests (not the tag string, which is a no-op for `latest`).
 cid="$(dc ps -q api)"
-running="$(docker inspect -f '{{.Config.Image}}' "$cid")"
-if [ "${running##*:}" != "$TAG" ]; then
-  echo "!! api is running '$running', expected tag ':$TAG'" >&2
+[ -n "$cid" ] || {
+  echo "!! api container is not running" >&2
+  exit 1
+}
+want="$(docker image inspect -f '{{.Id}}' "$API_IMAGE" 2>/dev/null || true)"
+got="$(docker inspect -f '{{.Image}}' "$cid")"
+if [ -n "$want" ] && [ "$want" != "$got" ]; then
+  echo "!! api container ($got) is not the pulled $API_IMAGE ($want)" >&2
   exit 1
 fi
-echo "==> api running $running"
+echo "==> api on $API_IMAGE"
 
-# End-to-end check through web (Caddy) -> api — the api container's own
-# healthcheck only hits :3000 directly; this exercises the proxied path.
-web_port="$(sed -n 's/^WEB_PORT=//p' .env)"
+# End-to-end check through web (Caddy) -> api. The port comes from compose itself
+# (authoritative, immune to .env quoting / CRLF), not from parsing .env.
+web_port="$(dc port web 8080 | tail -1)"
+web_port="${web_port##*:}"
 web_port="${web_port:-8080}"
 ok=
 for _ in 1 2 3 4 5; do
