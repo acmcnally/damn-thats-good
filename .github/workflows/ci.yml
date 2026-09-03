@@ -151,6 +151,10 @@ jobs:
     needs: deploy-staging
     if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
+    # Scopes TS_OAUTH_* + STAGING_URL, and the branch rule backstops the `if:`.
+    # Note: this is the 2nd `staging`-environment job per run (deploy-staging is
+    # the 1st) — if required reviewers are ever added to that environment, each
+    # `main` run will prompt for approval twice.
     environment: staging
     permissions:
       contents: read
@@ -180,23 +184,30 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      # First-run diagnostics for the transport bring-up (userspace vs kernel
-      # mode, proxy address) — see the DAMN-29 design doc § Transport. Trim once
-      # the path is proven.
-      - name: Tailnet transport info
-        run: |
-          ip -brief addr || true
-          tailscale status || true
+      # userspace vs kernel mode is all we need for the transport bring-up (see
+      # the DAMN-29 design doc § Transport). NOT `tailscale status` — it prints
+      # the tailnet name + host list, and CI logs on a public repo are public.
+      - name: Tailnet mode
+        run: ip link show tailscale0 && echo "kernel mode" || echo "no tailscale0 → userspace mode"
 
       - name: Smoke test against staging
         env:
           E2E_BASE_URL: ${{ vars.STAGING_URL }}
           # E2E_PROXY: set once the draft-PR loop confirms userspace mode + the proxy
           # address (e.g. socks5://localhost:1055). Unset = direct / kernel mode.
-        run: pnpm e2e
+        run: |
+          if [ -z "$E2E_BASE_URL" ]; then
+            echo "::error::vars.STAGING_URL is not set for the 'staging' environment."
+            echo "Add it (the tailscale serve HTTPS URL) — otherwise run.ts self-skips and this job falsely goes green."
+            exit 1
+          fi
+          pnpm e2e
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() }}
+        # Only on failure — the HTML report / traces embed the staging URL, and
+        # artifacts on a public repo are world-downloadable. A green run has
+        # nothing to inspect anyway.
+        if: ${{ failure() }}
         with:
           name: playwright-report
           path: e2e/playwright-report/

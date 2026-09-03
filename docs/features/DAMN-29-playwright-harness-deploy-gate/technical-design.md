@@ -139,9 +139,17 @@ try {
   edits are never published so we can't pull.
 - **`run.ts` is TypeScript on Node 24** (`node ./run.ts`, type stripping) — same
   pattern as `deploy/compose.yaml`'s `node …/migrate.ts`. It shells out with
-  `node:child_process` (stdio inherited). It resolves the `playwright` binary via
-  `node_modules/.bin` explicitly (not bare `PATH`) so it works whether invoked as
-  `pnpm e2e` or `node run.ts`.
+  `node:child_process` (`spawnSync`, stdio inherited). It invokes Playwright as
+  `pnpm exec playwright …` (reliable workspace-local resolution); `pnpm` and
+  `docker` are on `PATH` in every path that reaches `run.ts`. Always run it via
+  `pnpm e2e`.
+- **The final `up` passes `--no-deps`** — postgres is already up and migrations
+  applied, and without it `up api web` re-pulls the one-shot `migrate` service
+  (kept in `api`'s `depends_on` for the bare `docker compose up` dev path) and can
+  hit docker/compose#10596.
+- **`@dtg/e2e`'s script is `e2e`, not `test`** — avoids colliding with the root
+  `pnpm test` (Vitest). `run.test.ts` (the unit tests) runs under the root
+  `pnpm test` / `unit` project.
 
 ### Root `docker-compose.yml` — `web` healthcheck
 
@@ -338,6 +346,14 @@ resolved on the draft-PR loop (DAMN-28 iterated its tailscale bits the same way)
 | 3 | **DNS through the proxy** — browser vs `request` context | Chromium with a SOCKS5 proxy resolves remotely (tailnet-side, MagicDNS works); undici's `ProxyAgent` (Playwright's `request`) resolves via CONNECT, also remote. The smoke test hits **both** paths against `STAGING_URL` — if only one fails it's this. |
 | 4 | **TLS** | `tailscale serve` presents a real Let's Encrypt cert for the `ts.net` name — no `ignoreHTTPSErrors`. Check: no cert error in the run. |
 | 5 | **Tailnet ACL** | `tag:ci → tag:staging` must permit **`:443`** (not just `:22`, which DAMN-28 used for SSH). See prerequisite below. |
+| 6 | **`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` at job scope** vs the explicit `playwright install --with-deps chromium` step | the var should suppress only the npm `postinstall`, not an explicit `playwright install`. Check: the install step logs a download, not "up to date"/skip. If it skips, drop the job-level `env` var. |
+
+The `e2e-staging` job also **hard-fails if `vars.STAGING_URL` is empty** (a
+guard in the smoke step) — otherwise `run.ts` would self-skip and the job would
+go falsely green on the exact signal DAMN-30 gates on. The Playwright report
+artifact uploads **only on failure** (`if: failure()`) — the HTML report / traces
+embed the staging URL and public-repo artifacts are world-downloadable; a green
+run has nothing to inspect.
 
 **Prerequisite (owner, during implementation):** confirm the tailnet policy allows
 `tag:ci` → `tag:staging` on `:443`. DAMN-28's README left the default allow-all

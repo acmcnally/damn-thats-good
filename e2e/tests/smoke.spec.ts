@@ -17,8 +17,9 @@ test('serves the app and reaches the database', async ({ page, request }) => {
   expect(health.status()).toBe(200);
   expect(await health.json()).toMatchObject({ status: 'ok', db: 'up' });
 
-  // The page renders a value that travelled web → API → Postgres → back.
   await page.goto('/');
   await expect(page.getByRole('heading', { name: "Damn That's Good" })).toBeVisible();
-  await expect(page.getByRole('definition').filter({ hasText: "Damn That's Good" })).toBeVisible();
+  // The <time> element only renders when GET /api/meta returned the seeded row —
+  // i.e. the full web → API → Postgres → back round trip succeeded.
+  await expect(page.locator('dd time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/);
 });

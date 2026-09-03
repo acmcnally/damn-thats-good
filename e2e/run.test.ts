@@ -15,6 +15,11 @@ describe('decideMode', () => {
     expect(decideMode({ CI: 'true' })).toBe('local');
     expect(decideMode({})).toBe('local');
   });
+
+  it('skip when E2E_BASE_URL is present but empty (unset staging variable)', () => {
+    // The `e2e-staging` workflow step guards against this too — belt and braces.
+    expect(decideMode({ E2E_BASE_URL: '', GITHUB_ACTIONS: 'true' })).toBe('skip');
+  });
 });
 
 describe('parseComposePs', () => {

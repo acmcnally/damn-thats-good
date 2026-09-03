@@ -132,15 +132,31 @@ function main(): number {
     return 1;
   }
 
+  const keep = process.env.E2E_KEEP?.toLowerCase();
+  const keepStack = keep !== undefined && keep !== '' && keep !== '0' && keep !== 'false';
   const weStarted = state === 'absent';
-  if (weStarted) {
-    console.log('[e2e] no stack running — building images (first run is slow) and starting…');
-    dcRun(['build']);
-    dcRun(['up', '-d', 'postgres', '--wait', '--wait-timeout', '60']);
-    dcRun(['run', '--rm', 'migrate']);
-    dcRun(['up', '-d', '--wait', '--wait-timeout', '180', 'api', 'web']);
-  } else {
-    console.log('[e2e] reusing the running stack.');
+
+  try {
+    if (weStarted) {
+      console.log('[e2e] no stack running — building images (first run is slow) and starting…');
+      dcRun(['build']);
+      dcRun(['up', '-d', 'postgres', '--wait', '--wait-timeout', '60']);
+      dcRun(['run', '--rm', 'migrate']);
+      // --no-deps: postgres is up and migrations are applied. Without it, `up`
+      // re-pulls the one-shot `migrate` service (api's depends_on, kept for the
+      // bare `docker compose up` dev path) and can hit docker/compose#10596.
+      dcRun(['up', '-d', '--wait', '--wait-timeout', '180', '--no-deps', 'api', 'web']);
+    } else {
+      console.log('[e2e] reusing the running stack.');
+    }
+  } catch (err) {
+    if (weStarted) {
+      banner([
+        'Stack setup failed — containers may be partly up.',
+        '`docker compose ps` to check · `docker compose down` to clean up.',
+      ]);
+    }
+    throw err;
   }
 
   // Cheap safety net — no-op when the browser is already in ~/.cache/ms-playwright.
@@ -150,8 +166,15 @@ function main(): number {
   console.log(`[e2e] running against ${baseUrl}`);
   const code = playwright(['test'], baseUrl);
 
-  if (weStarted && code === 0 && !process.env.E2E_KEEP) {
-    dcRun(['down']);
+  if (weStarted && code === 0 && !keepStack) {
+    try {
+      dcRun(['down']);
+    } catch (err) {
+      console.warn(
+        '[e2e] tests passed but `docker compose down` failed — clean up manually:',
+        err instanceof Error ? err.message : err,
+      );
+    }
   } else if (weStarted) {
     banner([
       code === 0
