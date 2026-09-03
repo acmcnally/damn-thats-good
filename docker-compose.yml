@@ -33,7 +33,11 @@ services:
       context: .
       target: api
     working_dir: /app
-    command: ['pnpm', '--filter', '@dtg/db', 'migrate']
+    # `node`, not `pnpm` — corepack's pnpm isn't pre-fetched in the image, so a
+    # `pnpm` call downloads it from npm at runtime. migrate.ts has no local
+    # imports; drizzle-orm/postgres resolve from /app/node_modules. Matches
+    # deploy/compose.yaml.
+    command: ['node', 'packages/db/src/migrate.ts']
     environment: *db-url
     depends_on:
       postgres:
@@ -74,6 +78,14 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    # So `docker compose ps` can distinguish a healthy web from a starting one —
+    # the e2e stack-reuse probe (e2e/run.ts) keys on it. Mirrors deploy/compose.yaml.
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8080/ >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
 
 volumes:
   pgdata:

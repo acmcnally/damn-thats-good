@@ -14,11 +14,16 @@ WORKDIR /app
 
 # --- deps: install once from the lockfile, cached on manifests only ---
 FROM base AS deps
+# The image builds api + web only; it never runs Playwright, so skip its
+# browser download. (@dtg/e2e's manifest is still needed — pnpm-workspace.yaml
+# lists it, and --frozen-lockfile validates the whole workspace.)
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
+COPY e2e/package.json e2e/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # --- build: compile both apps ---

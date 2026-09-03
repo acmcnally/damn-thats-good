@@ -14,7 +14,11 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.ts'],
+          include: [
+            'packages/*/src/**/*.test.ts',
+            'apps/*/src/**/*.test.ts',
+            'e2e/*.test.ts', // run.ts mode-dispatch helpers (no Docker, no browser)
+          ],
           exclude: [...configDefaults.exclude, '**/*.component.test.{ts,tsx}'],
         },
       },
