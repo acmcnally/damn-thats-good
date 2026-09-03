@@ -33,7 +33,7 @@ Every decision in this project traces to one or more of four categories. When ev
 ## Conventions
 
 - **Language:** TypeScript everywhere, strict mode. No plain JS.
-- **Commands (repo root):** `pnpm verify` is the gate (lint + typecheck + test + build); run individually as `pnpm lint` / `typecheck` / `test` / `build`. `pnpm format` writes Prettier. Node ≥24, pnpm via `packageManager` / corepack.
+- **Commands (repo root):** `pnpm verify` is the gate (lint + typecheck + test + build); run individually as `pnpm lint` / `typecheck` / `test` / `build`. `pnpm format` writes Prettier. `pnpm dev` runs the local stack (Postgres in Docker + API/web on the host, hot reload); `docker compose up` runs the whole app in containers behind Caddy. Node ≥24, pnpm via `packageManager` / corepack, Docker required.
 - **API style:** REST, resource-oriented.
 - **Shared types:** anything crossing the web/api boundary (request/response DTOs, core entity shapes) belongs in `packages/shared`, imported by both, not duplicated.
 - **Data model source of truth:** `packages/db` — Drizzle schema + migrations. Don't hand-write SQL migrations outside Drizzle's migration flow.

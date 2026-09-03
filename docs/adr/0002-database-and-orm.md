@@ -1,6 +1,6 @@
 # ADR-0002: PostgreSQL + Drizzle ORM
 
-**Status:** Accepted — PostgreSQL + Drizzle decided. The search *implementation* (how FTS and `pg_trgm` blend; prefix matching for type-ahead) is an open design task for the V1 search build — see "Known soft spots".
+**Status:** Accepted — PostgreSQL + Drizzle decided; wired to a running stack as of DAMN-26 (Postgres 17.11, `drizzle-kit generate` → committed SQL → a one-shot `migrate` step, never on app boot). The search *implementation* (how FTS and `pg_trgm` blend; prefix matching for type-ahead) is an open design task for the V1 search build — see "Known soft spots".
 **Decision drivers:** skill development (portability lens) · scope & simplicity
 
 ## Context

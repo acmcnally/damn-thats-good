@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "db",
+      "detail": "Start Postgres (wait for healthy) + run migrations",
+      "type": "shell",
+      "command": "docker compose up -d --wait postgres && pnpm --filter @dtg/db migrate",
+      "presentation": { "panel": "dedicated", "group": "dev", "reveal": "always", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "api",
+      "detail": "NestJS dev server (tsup --watch)",
+      "type": "shell",
+      "command": "pnpm --filter @dtg/api dev",
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "dev", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "web",
+      "detail": "Vite dev server",
+      "type": "shell",
+      "command": "pnpm --filter @dtg/web dev",
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "dev", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev",
+      "detail": "db, then api + web",
+      "dependsOrder": "sequence",
+      "dependsOn": ["db", "servers"],
+      "problemMatcher": []
+    },
+    {
+      "label": "servers",
+      "detail": "api + web in parallel (used by 'dev')",
+      "dependsOn": ["api", "web"],
+      "problemMatcher": []
+    }
+  ]
+}

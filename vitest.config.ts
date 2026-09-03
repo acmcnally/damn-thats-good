@@ -1,9 +1,12 @@
+import swc from 'unplugin-swc';
 import { configDefaults, defineConfig } from 'vitest/config';
 
-// Tiers per ADR-0012. The component tier has two flavours with different needs:
-//   - web: jsdom + (later) React Testing Library + MSW
-//   - api: node + (later) supertest against a real Postgres via Testcontainers
-// The Testcontainers setup and the Playwright workflow tier arrive with DAMN-26/27.
+// Tiers per ADR-0012:
+//   unit           — pure logic, node env, every build
+//   component-web  — React Testing Library in jsdom + MSW, every build
+//   component-api  — supertest against the real Nest app + a Testcontainers Postgres
+//                    (needs Docker; runs in `pnpm verify` / CI). SWC transform so
+//                    NestJS decorator metadata survives (mirrors apps/api/.swcrc).
 export default defineConfig({
   test: {
     projects: [
@@ -20,13 +23,17 @@ export default defineConfig({
           name: 'component-web',
           environment: 'jsdom',
           include: ['apps/web/src/**/*.component.test.{ts,tsx}'],
+          setupFiles: ['./apps/web/vitest.setup.ts'],
         },
       },
       {
+        plugins: [swc.vite()],
         test: {
           name: 'component-api',
           environment: 'node',
           include: ['apps/api/src/**/*.component.test.ts'],
+          testTimeout: 60_000,
+          hookTimeout: 120_000,
         },
       },
     ],

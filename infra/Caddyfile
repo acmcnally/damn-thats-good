@@ -1,0 +1,14 @@
+# Internal reverse proxy for the local Compose stack (ADR-0004).
+# TLS is terminated upstream (Cloudflare / Tailscale — undecided), so Caddy here does
+# only path routing: /api/* to the NestJS service, everything else to the static SPA.
+:8080 {
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

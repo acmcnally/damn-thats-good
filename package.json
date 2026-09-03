@@ -8,6 +8,8 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev": "docker compose up -d --wait postgres && pnpm --filter @dtg/db migrate && pnpm -r --parallel dev",
+    "dev:down": "docker compose down",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",
@@ -18,15 +20,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@swc/core": "catalog:",
     "@types/node": "catalog:",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "jiti": "^2.7.0",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
     "typescript": "catalog:",
     "typescript-eslint": "^8.69.0",
-    "vite": "^8.2.2",
+    "unplugin-swc": "^1.5.11",
+    "vite": "catalog:",
     "vitest": "^4.1.11"
   }
 }

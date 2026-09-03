@@ -4,12 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "migrate": "node src/migrate.ts"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.1.0",
+    "drizzle-kit": "^0.31.10",
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9"
   }
 }

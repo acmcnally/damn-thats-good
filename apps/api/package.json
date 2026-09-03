@@ -4,16 +4,28 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsup --watch --onSuccess \"node dist/main.js\"",
     "build": "tsup",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dtg/db": "workspace:*",
-    "@dtg/shared": "workspace:*"
+    "@dtg/shared": "workspace:*",
+    "@nestjs/common": "^11",
+    "@nestjs/config": "^4",
+    "@nestjs/core": "^11",
+    "@nestjs/platform-express": "^11",
+    "drizzle-orm": "^0.45.2",
+    "reflect-metadata": "^0.2",
+    "rxjs": "^7"
   },
   "devDependencies": {
+    "@nestjs/testing": "^11.2.3",
+    "@swc/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
     "tsup": "catalog:",
     "typescript": "catalog:"
   }

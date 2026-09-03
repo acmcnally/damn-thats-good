@@ -37,6 +37,8 @@ The original decision took the Fastify adapter "for better throughput," but thro
 
 **Leaning: Express adapter**, unless a concrete reason to prefer Fastify emerges during the V1 build. Settle this once the auth integration (ADR-0003) is wired up — that is where adapter friction shows first.
 
+**Update (DAMN-26):** the `@nestjs/platform-express` adapter is in use as of the walking-skeleton build. This is provisional — the decision is still settled at auth wiring, not here; nothing so far depends on Express specifically.
+
 ### PWA / offline scope (settled)
 
 An installable, phone-friendly app is a **product preference** (category 2). Responsive layout + a web manifest ship from the start — cheap, no service worker needed.

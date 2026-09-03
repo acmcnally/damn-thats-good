@@ -4,15 +4,26 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsup",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@dtg/shared": "workspace:*"
+    "@dtg/shared": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "catalog:",
-    "tsup": "catalog:",
-    "typescript": "catalog:"
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "msw": "^2.15.0",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }

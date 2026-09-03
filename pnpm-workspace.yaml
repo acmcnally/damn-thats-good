@@ -5,6 +5,8 @@ packages:
 # Single source of truth for versions of tools each workspace invokes.
 # Reference as "catalog:" in a workspace's package.json.
 catalog:
+  '@swc/core': ^1.16.1
   '@types/node': ^24.9.2
   tsup: ^8.5.1
   typescript: ~5.9.3
+  vite: ^8.2.2
