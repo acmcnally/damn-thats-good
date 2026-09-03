@@ -36,4 +36,4 @@ Name-resolution (`apps/*` depending on `packages/*` via `workspace:*`) is the ea
 
 Trade-off accepted: the API build toolchain (tsup) is a deliberate choice rather than a framework default. It is a conventional pick for TypeScript monorepos and is swappable — the SWC-transform friction (DAMN-26) is the price of `apps/api` bundling `@dtg/*` from source; if it ever compounds, revisiting the no-per-package-build rule above is the lever.
 
-Deferred, to be picked up with CI (DAMN-27): a `pnpm.onlyBuiltDependencies` allowlist for dependency lifecycle scripts (pnpm 10 blocks them by default; pnpm 9 does not).
+**Done in DAMN-27:** `pnpm.onlyBuiltDependencies` in the root `package.json` allowlists `esbuild` (its postinstall sets up the platform binary the build needs). `cpu-features` / `ssh2` / `protobufjs` / `msw` also ship lifecycle scripts but were reviewed as safe to skip — native perf optionals, a CLI shim, a best-effort service-worker copy. pnpm 9 honours the field already, so the eventual pnpm 10 bump (which blocks unlisted scripts by default) is a no-op.

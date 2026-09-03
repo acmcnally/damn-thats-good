@@ -33,7 +33,8 @@ Every decision in this project traces to one or more of four categories. When ev
 ## Conventions
 
 - **Language:** TypeScript everywhere, strict mode. No plain JS.
-- **Commands (repo root):** `pnpm verify` is the gate (lint + typecheck + test + build); run individually as `pnpm lint` / `typecheck` / `test` / `build`. `pnpm format` writes Prettier. `pnpm dev` runs the local stack (Postgres in Docker + API/web on the host, hot reload); `docker compose up` runs the whole app in containers behind Caddy. Node ≥24, pnpm via `packageManager` / corepack, Docker required.
+- **Commands (repo root):** `pnpm verify` is the gate (lint + typecheck + test + build); run individually as `pnpm lint` / `typecheck` / `test` / `build`. `pnpm verify:fast` is the two fast test tiers only (the `pre-push` hook; ~4s). `pnpm format` writes Prettier. `pnpm dev` runs the local stack (Postgres in Docker + API/web on the host, hot reload); `docker compose up` runs the whole app in containers behind Caddy. Node ≥24, pnpm via `packageManager` / corepack, Docker required.
+- **CI (ADR-0010, `.github/workflows/ci.yml`):** the `verify` job runs `pnpm verify` on every PR and is the required check for `main`; a merge to `main` also builds + publishes the `api` / `web` images to GHCR. No deploy step yet (DAMN-28).
 - **API style:** REST, resource-oriented.
 - **Shared types:** anything crossing the web/api boundary (request/response DTOs, core entity shapes) belongs in `packages/shared`, imported by both, not duplicated.
 - **Data model source of truth:** `packages/db` — Drizzle schema + migrations. Don't hand-write SQL migrations outside Drizzle's migration flow.

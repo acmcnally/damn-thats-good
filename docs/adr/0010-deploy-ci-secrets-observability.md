@@ -1,6 +1,6 @@
 # ADR-0010: Deploy, CI, secrets, and observability
 
-**Status:** Proposed — reasoning complete. Open: how the web frontend is served in production (static artifact via Caddy vs. its own container) — reconcile with ADR-0004. Testing strategy has moved to ADR-0012.
+**Status:** Proposed — reasoning complete. Web-frontend serving settled (DAMN-27): its own SHA-tagged Caddy image, mirroring the API. Testing strategy has moved to ADR-0012.
 **Decision drivers:** skill development (end-to-end deployment is a project goal) · scope & simplicity
 
 ## Context
@@ -39,7 +39,11 @@ Promotion flow: merge to `main` → CI builds the image → deploy to staging �
 
 ### Deploy
 
-- **Build once, deploy an artifact.** CI builds the API as a container image pushed to **GitHub Container Registry** (free for private images at this scale). **Open — the web frontend:** either (a) build the static SPA bundle in CI, ship it as a versioned tarball/artifact, and have Caddy serve it (simpler, matches ADR-0004's "Caddy routes `/api/*` vs. static frontend"), or (b) bake it into its own tiny nginx/Caddy image. Leaning (a). Reconcile with ADR-0004 before building the deploy pipeline.
+- **Build once, deploy an artifact.** CI builds **two** container images and pushes both to **GitHub Container Registry** (free at this scale), tagged by commit SHA:
+  - the **API** image (NestJS on Node);
+  - the **web** image — the built SPA bundle on top of `caddy:2`, with the Caddyfile that routes `/api/*` to the API and serves the static bundle with SPA fallback (the same `infra/Caddyfile` the local Compose stack uses).
+
+  **Settled in DAMN-27** (the earlier "leaning (a) — a bare static artifact served by a Caddy on the box" is dropped): the web frontend ships as its own image, deployed and rolled back exactly like the API — one `docker compose pull && up` cycle, one "what's live" answer per service (the image tag), and byte-for-byte parity with the local Compose stack DAMN-26 built. The registry holds one extra small image; in exchange the deploy path has a single mechanism instead of "pull an image *and* unpack a tarball to a path". This reconciles ADR-0004: the web container's Caddy **is** the internal reverse proxy that ADR-0004 describes; public ingress (Cloudflare Tunnel vs. Tailscale Funnel, still open in ADR-0004) points at it, and that choice is not blocked by this one.
 - **Deploy is pull-based on the box**: a small script (or [Watchtower](https://containrrr.dev/watchtower/), or a `systemd` timer) pulls the new tagged image and runs `docker compose up -d`. Trigger manually or via a GitHub Actions step that SSHes in — start manual, automate once it is boring.
 - **Workflow tests gate the deploy** (ADR-0012): the Playwright suite runs against the built artifacts after migrations and before cutover. A green PR is necessary but the deploy re-checks end-to-end against exactly what is shipping.
 - **Promotion to prod is release-scoped, not per-feature.** Merged features accumulate on staging. When the maintainer judges the parked set ready, a release is tagged (`vX.Y.Z`) and that exact image is promoted to prod via a manual `workflow_dispatch`. This keeps prod deploys — and their brief downtime — batched and deliberate, and lets a solo maintainer review a coherent set rather than making a promote decision on every merge. The per-feature path stays available as the mechanism for a hotfix that needs to jump the release queue.
@@ -63,6 +67,7 @@ Promotion flow: merge to `main` → CI builds the image → deploy to staging �
 
 - **No CI, deploy by `git pull` + `docker compose up` on the box**: the implied status quo. Rejected — it means untested code reaches the machine family uses, and "works on my machine" is the only gate.
 - **Build on the box** instead of building images in CI: simpler registry story, but couples deploy to build toolchain drift on the server and makes rollback ("run the previous image tag") harder. Rejected.
+- **Web frontend as a bare static artifact** (CI ships `dist` as a versioned tarball; a Caddy already on the box serves it from a directory): appealing as "web is just files", and was the original lean. Rejected in DAMN-27 — it splits the deploy path into two mechanisms (pull-image for the API, unpack-tarball for the web), makes "which web version is live" a directory/symlink question instead of an image tag, and diverges from the local Compose stack, which already runs web as a Caddy image. The saving (one fewer image in the registry) does not offset the loss of a single uniform deploy/rollback path.
 - **Full GitOps (Argo/Flux) / Kubernetes / Nomad**: wildly disproportionate for one small app on one box.
 - **Managed error/APM (Sentry SaaS, Datadog)**: not the cost (Sentry has a usable free tier) — it's external data + not needed yet. Self-hosted equivalents (GlitchTip) deferred until silent runtime errors are a real problem.
 - **Push-based deploy** (CI SSHes in and runs everything): fine, and probably the end state; starting manual just to keep the first deploys observable by hand.

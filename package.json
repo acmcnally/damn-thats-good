@@ -16,7 +16,9 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "verify:fast": "vitest run --project unit --project component-web",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -34,5 +36,12 @@
     "unplugin-swc": "^1.5.11",
     "vite": "catalog:",
     "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "//onlyBuiltDependencies": "pnpm 10 blocks dependency lifecycle scripts by default (ADR-0005). Allowed: esbuild (postinstall sets up its platform binary) and @swc/core (postinstall verifies the native binding and installs the @swc/wasm fallback on unsupported platforms) — both load-bearing for the API build and the component-api test tier. Reviewed and left disabled: cpu-features / ssh2 (native perf optionals for an ssh transport we don't use), protobufjs (CLI shim), msw (service-worker file copy; we use the Node setupServer).",
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "esbuild"
+    ]
   }
 }
