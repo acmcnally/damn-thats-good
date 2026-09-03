@@ -38,8 +38,9 @@
     "vitest": "^4.1.11"
   },
   "pnpm": {
-    "//onlyBuiltDependencies": "pnpm 10 blocks dependency lifecycle scripts by default (ADR-0005). esbuild's postinstall sets up its platform binary and is load-bearing for the build. cpu-features / ssh2 / protobufjs / msw were reviewed — native perf optionals, a CLI shim, and a best-effort service-worker copy — all safe to skip.",
+    "//onlyBuiltDependencies": "pnpm 10 blocks dependency lifecycle scripts by default (ADR-0005). Allowed: esbuild (postinstall sets up its platform binary) and @swc/core (postinstall verifies the native binding and installs the @swc/wasm fallback on unsupported platforms) — both load-bearing for the API build and the component-api test tier. Reviewed and left disabled: cpu-features / ssh2 (native perf optionals for an ssh transport we don't use), protobufjs (CLI shim), msw (service-worker file copy; we use the Node setupServer).",
     "onlyBuiltDependencies": [
+      "@swc/core",
       "esbuild"
     ]
   }

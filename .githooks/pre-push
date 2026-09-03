@@ -5,4 +5,10 @@
 #
 # Wired via `core.hooksPath` — set by the root package.json "prepare" script on
 # `pnpm install`.
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pre-push: pnpm not on PATH — skipping fast checks (CI still runs them)." >&2
+  exit 0
+fi
+
 exec pnpm verify:fast
