@@ -25,16 +25,23 @@ provide:
 | `~/dtg/` — a clone of this repo | `git pull`ed by the deploy step; only `deploy/` is used |
 | `~/dtg/deploy/.env` | real values, `chmod 600`, **gitignored**, canonical copy in the password manager |
 | Docker + compose v2 | the Docker-in-LXC shakeout |
-| `tailscale` up, with `tag:staging` | MagicDNS name is what CI SSHes to |
+| `tailscale up --ssh`, tagged `tag:staging` | Tailscale terminates SSH (decision #3); MagicDNS name is what CI connects to |
 | `tailscale serve` → `http://127.0.0.1:${WEB_PORT}` | set once; persists across reboots |
+| Tailscale ACL grant | `tag:ci` may SSH as `deploy` on `tag:staging`; `tag:ci` → `tag:staging:22` only |
 
 **GitHub Actions secrets** (owner-provisioned):
 
 | Secret | Use |
 |---|---|
-| `STAGING_SSH_KEY` | private key; matching pubkey in the deploy user's `authorized_keys` |
 | `STAGING_HOST` | the tailnet MagicDNS name of the LXC (secret to keep the hostname out of the public repo) |
 | `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET` | Tailscale OAuth client for the ephemeral CI node (scoped to `tag:ci`) |
+
+No SSH key secret — decision #3 uses **Tailscale SSH**: host identity and client
+auth both come from the tailnet (WireGuard keys + control plane), gated by the
+ACL. Nothing to rotate when the LXC is rebuilt during the shakeout. Fallback if
+`tailscale ssh` proves fiddly: a `STAGING_SSH_KEY` secret + `authorized_keys` +
+`StrictHostKeyChecking=accept-new` (trust-on-first-use; weak on ephemeral runners
+but low exposure behind the tailnet + ACL).
 
 The **repo** (this PR) provides `deploy/compose.yaml`, `deploy/deploy.sh`,
 `deploy/.env.example`, the `deploy-staging` CI job, and docs.
@@ -97,10 +104,12 @@ Added to `.github/workflows/ci.yml` (not a separate workflow):
           tags: tag:ci
       - name: Deploy
         run: |
-          install -m600 <(printf '%s' "${{ secrets.STAGING_SSH_KEY }}") "$RUNNER_TEMP/key"
-          ssh -i "$RUNNER_TEMP/key" -o StrictHostKeyChecking=accept-new \
-            "deploy@${{ secrets.STAGING_HOST }}" \
+          tailscale ssh "deploy@${{ secrets.STAGING_HOST }}" \
             "cd ~/dtg && git pull --ff-only && ./deploy/deploy.sh sha-${{ github.sha }}"
+        # Tailscale SSH (decision #3): the tailscale/github-action step brings the
+        # runner onto the tailnet; `tailscale ssh` authenticates and host-verifies
+        # via the tailnet + ACL — no key, no known_hosts. (Plain `ssh` over the
+        # tailnet also works but still does host-key TOFU; `tailscale ssh` doesn't.)
       - name: Verify staging health
         run: |
           curl -fsS --retry 5 --retry-delay 3 \
@@ -117,7 +126,7 @@ Added to `.github/workflows/ci.yml` (not a separate workflow):
 |---|---|---|
 | 6a — `deploy/compose.yaml` + `deploy.sh` + `.env.example`, validated locally against real GHCR images | Claude | `docker compose config` clean; local up→health OK |
 | 6b — provision LXC; Docker-in-LXC shakeout; `git clone` repo; write `.env`; **run `deploy.sh` by hand** | owner | skeleton reachable at `http://<lxc>:8080` over the tailnet |
-| 6c — `tailscale serve` for HTTPS; Tailscale OAuth client + ACL tags; SSH deploy user + `authorized_keys`; GH secrets | owner | `https://<host>.ts.net/api/health` OK from another tailnet device |
+| 6c — `tailscale up --ssh` + `tailscale serve`; Tailscale OAuth client; ACL (tag:ci→tag:staging SSH + `:22`); deploy user; 3 GH secrets | owner | `https://<host>.ts.net/api/health` OK from another tailnet device; `tailscale ssh deploy@<host>` works from a tag:ci-tagged node |
 | 6d — `deploy-staging` job in `ci.yml` | Claude | — |
 | 6e — merge to `main`, watch it deploy end to end | both | staging reflects the new commit automatically |
 
@@ -147,7 +156,7 @@ No unit/component tests — infra only. `pnpm verify` is untouched; the CI
 |---|---|---|---|
 | 1 | deploy in `ci.yml` job vs separate `workflow_run` file | **job in `ci.yml`**, `needs: build-images` | correct ordering, one visible run, `github.sha` in hand |
 | 2 | box gets `deploy/` via `git clone`+`pull` vs `scp`/`rsync` | **git clone + `git pull --ff-only`** | one dir, always consistent with `main`, normal pattern |
-| 3 | SSH host-key policy | **`StrictHostKeyChecking=accept-new`** | tailnet transport; MITM isn't the threat model; pre-seeding `known_hosts` is fussy for solo |
+| 3 | SSH auth + host-key policy | **Tailscale SSH** (`tailscale up --ssh` + ACL grant); fall back to a `STAGING_SSH_KEY` secret + `accept-new` if `tailscale ssh` is fiddly | no SSH key or `known_hosts` secret to manage or rotate on LXC rebuild; auth + host identity from the tailnet + ACL; consistent with D1 |
 | 4 | `.env` location on box | **`~/dtg/deploy/.env`**, gitignored | one directory to reason about |
 | 5 | `web` port binding | **`${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080`** | localhost default (tailscale serve is the entry); `.env` opens it to LAN; prod-reuse stays clean |
 | 6 | post-deploy health check in CI | **yes** — curl the `tailscale serve` HTTPS path | real signal; also verifies D3 |
@@ -157,7 +166,7 @@ No unit/component tests — infra only. `pnpm verify` is untouched; the CI
 ## Risks
 
 - **Docker-in-LXC is the real risk** (issue's own words). Mitigation: 6b is a hand-run shakeout before any automation; if it fights hard, ADR-0004's escape hatch is "promote staging to a VM" — not more abstraction.
-- **`tailscale/github-action` + OAuth + ACL tags** — first-time setup friction. Mitigation: D3 falls back to plain HTTP over the tailnet; the ephemeral-node pattern is well documented and DAMN-29 needs it regardless.
+- **`tailscale/github-action` + OAuth + ACL + Tailscale SSH** — first-time setup friction, and `tailscale ssh` from an ephemeral CI node is a less-trodden path. Mitigations: decision #3 falls back to a `STAGING_SSH_KEY` secret + `accept-new`; D3 falls back to plain HTTP over the tailnet; the ephemeral-node pattern is well documented and DAMN-29 needs it regardless. 6c gates on `tailscale ssh` actually working before 6d is written against it.
 - **Deploy races the image publish** — mitigated by `needs: build-images` (same run) and deploying the exact `sha-${{ github.sha }}` tag, not `latest`.
 - **`git pull` on the box hits a conflict** — mitigated by `--ff-only` (fails loudly) and `.env` being the only untracked file.
 - **Migration/rollback asymmetry** — real once DAMN-2 ships; documented now, not solved here.
