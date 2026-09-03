@@ -33,5 +33,23 @@ if [ "${running##*:}" != "$TAG" ]; then
 fi
 echo "==> api running $running"
 
+# End-to-end check through web (Caddy) -> api — the api container's own
+# healthcheck only hits :3000 directly; this exercises the proxied path.
+web_port="$(sed -n 's/^WEB_PORT=//p' .env)"
+web_port="${web_port:-8080}"
+ok=
+for _ in 1 2 3 4 5; do
+  if curl -fsS "http://127.0.0.1:${web_port}/api/health" 2>/dev/null | grep -q '"status":"ok"'; then
+    ok=1
+    break
+  fi
+  sleep 3
+done
+if [ -z "$ok" ]; then
+  echo "!! health check failed at http://127.0.0.1:${web_port}/api/health" >&2
+  exit 1
+fi
+echo "==> health OK (http://127.0.0.1:${web_port}/api/health)"
+
 docker image prune -f >/dev/null
 dc ps

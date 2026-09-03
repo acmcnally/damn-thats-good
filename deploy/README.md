@@ -208,8 +208,9 @@ unprivileged.
 
 ### 7. Tailscale ACL — do this BEFORE section 8 (`[tailscale]`)
 
-Admin console → **Access Controls**. Merge into the existing policy (keep the
-default allow-all `acls` block as-is for now):
+Admin console → **Access Controls**. Merge into the existing policy — leave the
+default allow-all network rule (`acls` or `grants`, whichever your tailnet's
+default policy uses) exactly as-is for now:
 
 ```json
 	"tagOwners": {
@@ -230,9 +231,15 @@ default allow-all `acls` block as-is for now):
 `action` **must** be `accept`, not `check` — a tagged source can't do
 interactive reauth. Save.
 
-Then create a **Tailscale OAuth client** (Settings → OAuth clients): scopes to
-write auth keys / devices, restricted to `tag:ci`. Save the **client ID** and
-**secret** for section 9.
+Then create a **Tailscale auth key** (Settings → Keys → Generate auth key):
+
+- **Reusable** ✔ — CI runs many times
+- **Ephemeral** ✔ — each run's node auto-removes
+- **Tags:** `tag:ci`
+
+Save the key for section 9. (Auth keys expire — 90 days max — so this is a
+recurring regenerate-and-update chore. An OAuth client, if you can find it under
+Settings → Keys, doesn't expire; switching later is a ~2-line workflow change.)
 
 ### 8. Tailscale on the box (`[lxc-root]`)
 
@@ -256,15 +263,21 @@ Verify from another tailnet device: `https://dtg-staging.<tailnet>.ts.net/api/he
 From here on you can `ssh deploy@dtg-staging` straight from your workstation
 (one clean hop — no more `pct enter` nesting) for manual `deploy.sh` runs.
 
-### 9. GitHub Actions secrets / variables (`[github]`)
+### 9. GitHub Actions environment (`[github]`)
 
-Repo → Settings → Secrets and variables → Actions:
+Repo → Settings → **Environments → New environment** → `staging`.
 
-| Name | Kind | Value |
-|---|---|---|
-| `STAGING_HOST` | **variable** | `dtg-staging` (the short MagicDNS name) |
-| `TS_OAUTH_CLIENT_ID` | secret | from section 7 |
-| `TS_OAUTH_SECRET` | secret | from section 7 |
+- **Protection rule:** Deployment branches and tags → **Selected branches** → `main`.
+  (Defense in depth on top of the job's own `if: main`.)
+- On that environment:
+
+  | Name | Kind | Value |
+  |---|---|---|
+  | `STAGING_HOST` | **variable** | `dtg-staging` (the short MagicDNS name) |
+  | `TS_AUTHKEY` | **secret** | the auth key from section 7 |
+
+Environment secrets reach only the job that declares `environment: staging`
+(the deploy job) — `verify` and `build-images` never see them.
 
 Enable GitHub's "a workflow run failed" email notification for yourself — the
 only deploy-failure alert until real observability (ADR-0010).

@@ -1,6 +1,7 @@
 # ADR-0004: Hosting — self-hosted Proxmox + Docker Compose; public ingress TBD
 
 **Status:** Accepted for compute, runtime, and storage (self-host on the existing Proxmox box). Open, before the app is exposed to the internet: (1) public ingress — Cloudflare Tunnel vs. Tailscale Funnel; (3) whether Caddy stays in the path or its routing folds elsewhere. Open, before photos ship (V3): (2) the Cloudflare free-plan photo-serving check. See Consequences.
+**Update (DAMN-28):** the LXC experiment landed on staging as an **unprivileged** Debian LXC (not privileged — a breakout there would be host root, and the box also runs prod). Staging is tailnet-only (`tailscale serve` for HTTPS) plus optional LAN. Caddy (the web image) stays in-path for `/api` vs. static routing. Tailscale is used for the private CI→box deploy path (ephemeral `tag:ci` node + Tailscale SSH) — that is an admin-access use this ADR already assumes and is **orthogonal to open item (1)**, the public *visitor* ingress choice, which stays deferred to DAMN-30.
 **Decision drivers:** skill development (Proxmox / containers / Linux / deployment are project goals) · scope & simplicity (low, justified ongoing cost)
 
 ## Context
