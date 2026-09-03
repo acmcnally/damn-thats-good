@@ -1,0 +1,8 @@
+#!/bin/sh
+# ADR-0012 local-first gate: the two fast test tiers (unit + web component) run
+# before every push. Full lint / typecheck / build and the Testcontainers API
+# tier run in `pnpm verify` and in CI. Bypass with `git push --no-verify`.
+#
+# Wired via `core.hooksPath` — set by the root package.json "prepare" script on
+# `pnpm install`.
+exec pnpm verify:fast
