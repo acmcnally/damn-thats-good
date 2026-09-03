@@ -1,6 +1,7 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'e2e' # Playwright workflow tier (@dtg/e2e) — its own package (ADR-0012, DAMN-29)
 
 # Single source of truth for versions of tools each workspace invokes.
 # Reference as "catalog:" in a workspace's package.json.

@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "e2e": "pnpm --filter @dtg/e2e e2e",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e",
     "verify:fast": "vitest run --project unit --project component-web",
     "prepare": "git config core.hooksPath .githooks || true"
   },
@@ -26,6 +27,7 @@
     "@types/node": "catalog:",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-playwright": "^2.11.0",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "jiti": "^2.7.0",

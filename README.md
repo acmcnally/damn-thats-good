@@ -24,6 +24,7 @@ apps/
 packages/
   db/       Drizzle schema + migrations — source of truth for the data model
   shared/   Shared types/DTOs used by both web and api
+e2e/        Playwright workflow (E2E) tests — @dtg/e2e
 infra/      Docker Compose, Caddy reverse proxy config, cloudflared config
 docs/
   adr/        Architecture Decision Records — why we chose what we chose
@@ -49,9 +50,11 @@ pnpm install
 pnpm verify   # lint + typecheck + test + build, across every workspace
 ```
 
-Individual gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. `pnpm format` applies Prettier.
+Individual gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`. `pnpm format` applies Prettier.
 
-A `pre-push` hook runs the two fast test tiers (`pnpm verify:fast`, ~4 s) — it's wired automatically on `pnpm install`. `git push --no-verify` skips it. CI (GitHub Actions, `.github/workflows/ci.yml`) runs the full `pnpm verify` on every PR and is required to merge; a merge to `main` also publishes the `api` and `web` container images to GHCR (ADR-0010, ADR-0012).
+`pnpm e2e` is the Playwright workflow tier (`@dtg/e2e`) — it stands up a Docker Compose stack and runs a browser smoke test against it (first run builds the images, so it's slow; a running stack is reused). It's the last step of `pnpm verify`.
+
+A `pre-push` hook runs the two fast test tiers (`pnpm verify:fast`, ~4 s) — it's wired automatically on `pnpm install`. `git push --no-verify` skips it. CI (GitHub Actions, `.github/workflows/ci.yml`) runs the full `pnpm verify` on every PR and is required to merge (the workflow tier self-skips there); a merge to `main` also publishes the `api` and `web` container images to GHCR, deploys them to staging, and runs the Playwright smoke test against it (ADR-0010, ADR-0012).
 
 ### Running it locally
 
