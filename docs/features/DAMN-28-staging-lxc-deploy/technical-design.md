@@ -1,67 +1,103 @@
 # DAMN-28 — Staging environment (LXC) + auto-deploy: technical design
 
-Status: draft for review · light-touch workflow (no UI surface). Adversarial
-design review + pre-PR diff review still run.
+Status: revised after adversarial design review + security discussion ·
+light-touch workflow (no UI surface). Pre-PR diff review still runs.
 
 ## Requirements (frozen — see the Linear issue)
 
-Stand up staging as a Proxmox LXC; `main` deploys to it automatically. Locked
-decisions D1 (CI joins the tailnet as an ephemeral node and SSHes in), D2 (one
-`deploy.sh`, run manually first then wrapped by CI), D3 (`tailscale serve` for
-HTTPS). No public ingress — that's DAMN-30.
+Stand up staging as a Proxmox LXC; `main` deploys to it automatically. Locked:
+D1 (CI joins the tailnet as an ephemeral node and connects in), D2 (one
+`deploy.sh`, run by hand first then wrapped by CI), D3 (`tailscale serve` for
+HTTPS), D4 (Tailscale SSH, fallback SSH key). No public ingress — DAMN-30.
+
+### Decisions from the review + security discussion
+
+| | Decision | Rationale |
+|---|---|---|
+| **LXC flavor** | **Unprivileged.** Fallback if Docker-in-unprivileged-LXC won't cooperate: a **VM**, not a privileged LXC. | LAN exposure is wanted soon (mobile testing), the box also runs prod, and a privileged-LXC breakout = host root. Unprivileged contains a breakout to a nobody user. Our `pgdata` is a Docker *named volume*, not a host bind-mount, so the worst unprivileged UID-mapping friction doesn't apply. |
+| **LAN reachability** | In scope (the issue says "Tailscale / LAN"). `.env` defaults `WEB_BIND=127.0.0.1`; flip to `0.0.0.0` for LAN. | Documented both ways. The threat analysis that drove "unprivileged" *assumes* LAN exposure. |
+| **ACL scope** | `tag:ci → tag:staging:22` only. Health check runs **on the box** over the SSH channel. | The runner is in Tailscale userspace-networking mode — plain `curl`/`ssh` to `*.ts.net` don't route, and `:443` isn't granted. DAMN-29 makes its own access decision (likely Playwright-on-box). |
+| **X-Forwarded-Proto** | Defer the `trusted_proxies` / `trust proxy` fix to DAMN-1. | Needs a real auth flow to validate against; the skeleton has none. Tracked as a DAMN-1 follow-up. The health check does **not** verify D3's TLS assumptions. |
+| **Deploy-path hardening** | Never `pull_request_target`. `tag:ci` ACL minimal. OAuth client scoped to `tag:ci` only. `permissions: {}` on the deploy job. | See "Security model" below. |
 
 ## No UI surface
 
 Compose file, a deploy script, a CI job, docs. Nothing renders.
 
+## Security model (why the deploy loop is safe)
+
+The only path for code to reach staging is **a PR the owner squash-merges**:
+
+- `deploy-staging` runs only on `push` to `main` (`github.ref == 'refs/heads/main'`); on any PR event `github.ref` is `refs/pull/N/merge`, so it never runs on PRs — fork or not.
+- Fork `pull_request` runs get **no secrets** and a read-only token — they can't read `TS_OAUTH_SECRET`, push images, or trigger the deploy.
+- `push` to `main` only happens via merge (branch protection: PR-only, `verify` required, `enforce_admins`).
+- **`pull_request_target` is never used** — it's the one trigger that would run trusted (secret-bearing) workflow code against untrusted PR code.
+
+Residual risk, in order: (1) the owner merging an unreviewed diff; (2) **dependency
+supply chain** — a hijacked npm package reaches staging on the next merge
+regardless of diff review, and `pnpm install` runs lifecycle scripts for
+`esbuild`/`@swc/core` — this is the main reason staging is unprivileged; (3)
+GitHub/Tailscale infra compromise (ephemeral `tag:ci` node, ~30 s/run, SSH-to-
+staging-only).
+
+**The Tailscale OAuth secret is worth "SSH to staging as `deploy`"** — the
+`deploy` user is in the `docker` group, so that's LXC root. Guard it like an SSH
+key. When D4's SSH-key fallback is used, an `authorized_keys` `command=` forced
+command (restricting CI to exactly `deploy.sh`) is worth setting — a mild point
+in the fallback's favour that Tailscale SSH can't match cleanly.
+
 ## The CI ↔ box contract
 
-This is the interface both sides build to. The **box** (owner-provisioned) must
-provide:
+The interface both sides build to. The **box** (owner-provisioned):
 
 | On the box | Detail |
 |---|---|
-| A deploy user, e.g. `deploy` | non-root, in the `docker` group |
-| `~/dtg/` — a clone of this repo | `git pull`ed by the deploy step; only `deploy/` is used |
-| `~/dtg/deploy/.env` | real values, `chmod 600`, **gitignored**, canonical copy in the password manager |
-| Docker + compose v2 | the Docker-in-LXC shakeout |
-| `tailscale up --ssh`, tagged `tag:staging` | Tailscale terminates SSH (decision #3); MagicDNS name is what CI connects to |
-| `tailscale serve` → `http://127.0.0.1:${WEB_PORT}` | set once; persists across reboots |
-| Tailscale ACL grant | `tag:ci` may SSH as `deploy` on `tag:staging`; `tag:ci` → `tag:staging:22` only |
+| An **unprivileged** Debian LXC | Proxmox host: `features: nesting=1` (and `keyctl=1` if Docker complains); `br_netfilter` loaded on the *host* |
+| Base packages | `ca-certificates`, `curl`, `git` — a slim Debian image ships none guaranteed |
+| Docker **from Docker's official apt repo** | `docker-ce` + `docker-compose-plugin`. **Not** Debian's packages — those give old `docker-compose` v1 with **no `--wait` flag**, which `deploy.sh` needs. |
+| A `deploy` user | non-root, in the `docker` group |
+| GHCR packages already public | verify `docker pull ghcr.io/acmcnally/damn-thats-good-api:latest` works **unauthenticated** before starting — else `deploy.sh` 401s |
+| `~/dtg/` — a clone of this repo | `git pull --ff-only`ed by the deploy step; only `deploy/` is used; **never hand-edit tracked files here** |
+| `~/dtg/deploy/.env` | real values, `chmod 600`, gitignored (`.env` pattern matches at any depth), canonical copy in the password manager |
+| Rootfs sized for image accumulation | fat images (DAMN-26 deferred trimming) × every deploy; `deploy.sh` prunes, but budget ~10–20 GB |
+| NTP / time sync | LetsEncrypt (via `tailscale serve`) needs correct time |
+| `tailscale` ≥ 1.50, `tailscale up --ssh`, tagged `tag:staging` | Tailscale terminates SSH (D4) |
+| `tailscale serve --bg` → `http://127.0.0.1:${WEB_PORT}` | HTTPS via the tailnet cert; enable "HTTPS Certificates" in the admin console first; persists across reboots on ≥ 1.50 |
+| Tailscale ACL | an `ssh` rule with **`action: "accept"`** (not `"check"` — a tagged source can't do interactive reauth): `tag:ci` → `tag:staging` as `deploy`; plus `tag:ci → tag:staging:22` in the ACL grants |
+| Delete the old tailnet node on every LXC rebuild | else MagicDNS renames to `host-1` and `STAGING_HOST` breaks |
+| `cpuunits` weighting (+ optional `cores` cap) | staging yields to dev and prod |
 
-**GitHub Actions secrets** (owner-provisioned):
+**GitHub Actions secrets / variables** (owner-provisioned):
 
-| Secret | Use |
-|---|---|
-| `STAGING_HOST` | the tailnet MagicDNS name of the LXC (secret to keep the hostname out of the public repo) |
-| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET` | Tailscale OAuth client for the ephemeral CI node (scoped to `tag:ci`) |
+| Name | Kind | Use |
+|---|---|---|
+| `STAGING_HOST` | **variable** (not secret — it's in CT logs anyway; a var stays out of git but is visible for debugging) | the LXC's tailnet MagicDNS name |
+| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET` | secret | Tailscale OAuth client, scoped to mint **only** `tag:ci` |
 
-No SSH key secret — decision #3 uses **Tailscale SSH**: host identity and client
-auth both come from the tailnet (WireGuard keys + control plane), gated by the
-ACL. Nothing to rotate when the LXC is rebuilt during the shakeout. Fallback if
-`tailscale ssh` proves fiddly: a `STAGING_SSH_KEY` secret + `authorized_keys` +
-`StrictHostKeyChecking=accept-new` (trust-on-first-use; weak on ephemeral runners
-but low exposure behind the tailnet + ACL).
+No SSH key secret while D4 (Tailscale SSH) holds. Fallback adds `STAGING_SSH_KEY`
++ `authorized_keys` (with a `command=` forced command) + a documented
+`ProxyCommand` (plain `ssh` doesn't route in the runner's userspace-networking
+mode).
 
-The **repo** (this PR) provides `deploy/compose.yaml`, `deploy/deploy.sh`,
-`deploy/.env.example`, the `deploy-staging` CI job, and docs.
+The **repo** (this PR): `deploy/compose.yaml`, `deploy/deploy.sh`,
+`deploy/.env.example`, `deploy/README.md`, the `deploy-staging` CI job, ADR notes.
 
 ## `deploy/compose.yaml`
 
-Prod-shaped. Same service graph as `docker-compose.yml` (dev) but:
+Prod-shaped. Same services as `docker-compose.yml` (dev), but:
 
 - `image: ghcr.io/acmcnally/damn-thats-good-{api,web}:${TAG:-latest}` — **no `build:`**
-- `migrate` uses the same `…-api:${TAG}` image
-- `web` publishes `${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080` — localhost by default (`tailscale serve` is the entry point); an `.env` override exposes it on the LAN
-- `postgres` named volume `dtg_pgdata` — explicitly named so DAMN-31's restore drills can target it
+- **`name: dtg`** at the top + `volumes.pgdata.name: dtg_staging_pgdata` — the literal Docker volume name, pinned so DAMN-31's restore drills aren't reverse-engineering `<projectdir>_pgdata`
+- **`api` depends only on `postgres`** (healthy) — migrate is *not* in the compose dependency chain; `deploy.sh` orchestrates it explicitly (S5). Dev keeps its own migrate→api gate for one-command `docker compose up`; this divergence is deliberate.
+- `migrate` service present but not depended-on: `command: ["node", "packages/db/src/migrate.ts"]`, `working_dir: /app` — **not** `pnpm --filter … migrate`, because corepack's pnpm binary isn't in the final image and `pnpm` would trigger a live download from npm on every deploy (S4). `migrate.ts` has no local imports; `drizzle-orm`/`postgres` resolve from `/app/node_modules`.
+- `web` publishes `${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080` + gets a healthcheck (`wget -qO- localhost:8080/ >/dev/null`) — dev's `web` has none, so `--wait` otherwise only confirms "running", not "serving"
+- `NODE_ENV=production` on `api` (and `migrate`) — identical staging/prod, keeps "byte-identical" true
 - everything `restart: unless-stopped` except `migrate` (`restart: "no"`)
 
-Service ordering (unchanged from dev): `postgres` healthy → `migrate` exits 0 →
-`api` healthy → `web`.
-
-**This file is byte-identical for staging and prod** (ADR-0010). DAMN-30 points
-prod's `.env` at it and runs the same `deploy.sh`; only the host (VM vs LXC) and
-env values differ. No `compose.prod.yaml` fork.
+**Byte-identical for staging and prod** — the things that differ (ingress:
+`tailscale serve` vs Cloudflare/Funnel; `cpuunits`; `.env` values) all live
+*outside* the compose file. The compose file is the container topology, not the
+whole deployment definition.
 
 ## `deploy/deploy.sh`
 
@@ -73,101 +109,118 @@ cd "$(dirname "$0")"
 TAG="${1:-latest}"          # ./deploy.sh                -> latest
 export TAG                  # ./deploy.sh sha-<40hex>    -> pin / roll back
 
-docker compose --env-file .env pull
-docker compose --env-file .env up -d postgres --wait      # DB up + healthy
-docker compose --env-file .env run --rm migrate           # explicit; aborts on failure
-docker compose --env-file .env up -d --wait               # api + web to the new tag
-docker compose --env-file .env ps
+dc() { docker compose --env-file .env "$@"; }
+
+dc pull
+dc up -d postgres --wait                     # DB up + healthy
+dc run --rm migrate                          # explicit; set -e aborts on failure
+dc up -d --wait                              # api + web to the new tag
+
+# S9: assert the running api is actually the tag we asked for
+running="$(dc ps --format '{{.Image}}' api | tail -n1)"
+case "$running" in
+  *":${TAG}"|*"-api:${TAG}") : ;;
+  *) echo "deploy: api is running '$running', expected tag '$TAG'" >&2; exit 1 ;;
+esac
+
+docker image prune -f                        # S6: fat images, constrained box
+dc ps
 ```
 
-- **Migrations are an explicit step before `api` is recreated** (ADR-0010). `set -e` + `run --rm migrate` means a bad migration aborts the deploy with the old `api`/`web` still serving.
-- **Rollback** = `./deploy.sh sha-<older>`. The runbook notes the caveat: **rolling the image back does not roll migrations back** — safe for the walking skeleton (one trivial migration), a real concern once DAMN-2 lands (ADR-0007 territory).
-- Idempotent: re-running with the same `TAG` is a no-op (`up -d` only recreates changed containers; `migrate` reports "up to date").
+- **Migrations run as an explicit step before `api` is recreated** (ADR-0010). `set -e` + `run --rm migrate` → a bad migration aborts with old `api`/`web` still serving.
+- **Tag assertion (S9)** — a stale checkout + a healthy old container would otherwise leave staging silently frozen while the health check passes.
+- **Rollback** = `./deploy.sh sha-<older>`. Runbook caveats: rolling the image back does **not** roll migrations back (fine for the skeleton; a real concern post-DAMN-2); and **rollback across the DAMN-2 baseline-migration regeneration is unsupported** (breaks `__drizzle_migrations` hashes).
+- Idempotent: same `TAG` → `up -d` recreates nothing, `migrate` reports "up to date".
 
 ## The `deploy-staging` CI job
 
-Added to `.github/workflows/ci.yml` (not a separate workflow):
+Appended to `.github/workflows/ci.yml`:
 
 ```yaml
   deploy-staging:
     needs: build-images
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions: {}                 # N1 — needs nothing from the token
     concurrency:
       group: deploy-staging
-      cancel-in-progress: false        # queue deploys; never kill one mid-compose
+      cancel-in-progress: false     # queue; never kill a deploy mid-compose
     steps:
-      - uses: tailscale/github-action@<sha>   # v3, SHA-pinned
+      - uses: tailscale/github-action@<sha>   # SHA-pinned, like DAMN-27's actions
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-      - name: Deploy
+      - name: Deploy + verify (on the box)
         run: |
-          tailscale ssh "deploy@${{ secrets.STAGING_HOST }}" \
-            "cd ~/dtg && git pull --ff-only && ./deploy/deploy.sh sha-${{ github.sha }}"
-        # Tailscale SSH (decision #3): the tailscale/github-action step brings the
-        # runner onto the tailnet; `tailscale ssh` authenticates and host-verifies
-        # via the tailnet + ACL — no key, no known_hosts. (Plain `ssh` over the
-        # tailnet also works but still does host-key TOFU; `tailscale ssh` doesn't.)
-      - name: Verify staging health
-        run: |
-          curl -fsS --retry 5 --retry-delay 3 \
-            "https://${{ secrets.STAGING_HOST }}/api/health" | grep -q '"status":"ok"'
+          tailscale ssh "deploy@${{ vars.STAGING_HOST }}" '
+            set -e
+            cd ~/dtg && git pull --ff-only
+            ./deploy/deploy.sh sha-'"${{ github.sha }}"'
+            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
+              "http://127.0.0.1:${WEB_PORT:-8080}/api/health" | grep -q '"'"'"status":"ok"'"'"'
+          '
 ```
 
-- **Why a job in `ci.yml`, not a `workflow_run`-triggered `deploy.yml`:** `needs: build-images` gives correct ordering on the same commit with `github.sha` in hand and the whole thing visible in one run. `workflow_run` runs detached, off the default-branch workflow version, and doesn't surface on the triggering run. Trade-off: `ci.yml` grows a third job. Accepted.
-- **Not a required status check** — a deploy failure shouldn't retroactively block the merge that's already in. Surfaces as a red job on `main` + (later, DAMN-10 of ADR-0010) an alert.
-- The health check hits the `tailscale serve` HTTPS path, so it also verifies D3.
+- **Health check runs on the box** over the same SSH channel (B1) — no `:443` ACL, no SOCKS-proxy dance. It exercises `web`(Caddy)→`api`; it does **not** exercise `tailscale serve`/TLS (that's D3, and D3 is not auth-critical until DAMN-1).
+- **`tailscale ssh`, not plain `ssh`** — in the runner's userspace-networking mode plain `ssh` needs a `ProxyCommand` through `localhost:1055`; `tailscale ssh` dials via netstack directly (S2).
+- **Job in `ci.yml`, not a `workflow_run` file** — `needs: build-images` gives correct ordering on the same commit with `github.sha` in hand, all in one visible run.
+- **Not a required status check** — a deploy failure shouldn't retro-block an already-merged commit. Surfaces as a red job on `main`; the owner must have GitHub "Actions failure" notifications on (runbook). Real alerting is ADR-0010 observability / prod-scoped.
+- `ci.yml`'s workflow-level `concurrency` already serializes `main` runs, so the deployed SHA advances monotonically — but a superseded pending run is cancelled, so **not every `main` commit gets images built** (note for DAMN-30's promote step: don't assume every SHA has a published image).
 
 ## Division of labor & sequencing
 
 | Step | Owner | Gate |
 |---|---|---|
-| 6a — `deploy/compose.yaml` + `deploy.sh` + `.env.example`, validated locally against real GHCR images | Claude | `docker compose config` clean; local up→health OK |
-| 6b — provision LXC; Docker-in-LXC shakeout; `git clone` repo; write `.env`; **run `deploy.sh` by hand** | owner | skeleton reachable at `http://<lxc>:8080` over the tailnet |
-| 6c — `tailscale up --ssh` + `tailscale serve`; Tailscale OAuth client; ACL (tag:ci→tag:staging SSH + `:22`); deploy user; 3 GH secrets | owner | `https://<host>.ts.net/api/health` OK from another tailnet device; `tailscale ssh deploy@<host>` works from a tag:ci-tagged node |
+| 6a — `deploy/compose.yaml` + `deploy.sh` + `.env.example` + `README.md`, validated locally against real GHCR images | Claude | `docker compose config` clean; local `deploy.sh` → `/api/health` + `/api/meta` OK; `shellcheck` clean |
+| 6b — provision the **unprivileged** LXC (Docker from Docker's apt repo); base packages; `deploy` user; verify unauthenticated `docker pull`; `git clone` to `~/dtg`; write `~/dtg/deploy/.env`; **run `./deploy/deploy.sh` by hand**; write up Docker-in-LXC notes in `deploy/README.md` | owner | skeleton reachable on the tailnet (and, once `WEB_BIND=0.0.0.0`, the LAN) |
+| 6c — `tailscale up --ssh` + `tailscale serve`; OAuth client (mints `tag:ci` only); ACL (`ssh` rule `action: accept`, `tag:ci`→`tag:staging` as `deploy`, `tag:ci→tag:staging:22`); `STAGING_HOST` var + `TS_OAUTH_*` secrets | owner | from a `tag:ci`-tagged ephemeral node: `tailscale ssh deploy@<host>` runs a command; `https://<host>.ts.net/` serves |
 | 6d — `deploy-staging` job in `ci.yml` | Claude | — |
-| 6e — merge to `main`, watch it deploy end to end | both | staging reflects the new commit automatically |
+| 6e — merge to `main`, watch it deploy end to end | both | staging reflects the new commit automatically; tag assertion + on-box health check green |
 
-Docker-in-LXC notes (`nesting`, `keyctl`/`fuse`, UID mapping, overlayfs) get
-written up in `deploy/README.md` as the owner works through 6b — that writeup is
-a deliverable (feeds any future LXC-vs-VM call).
+If unprivileged Docker-in-LXC genuinely won't cooperate after a real attempt →
+switch to a **VM** (drops the LXC-specific notes deliverable; staging becomes a
+closer prod mirror — a conscious trade, not a mid-implementation surprise).
 
 ## Test plan
 
 | What | How |
 |---|---|
 | `deploy/compose.yaml` valid | `docker compose -f deploy/compose.yaml --env-file deploy/.env.example config` |
-| Images run as pulled artifacts | local `deploy.sh` against `deploy/.env.example` (a throwaway local Postgres) → curl `/api/health`, `/api/meta` |
+| images run as pulled artifacts | local `deploy.sh` against `.env.example` → `curl /api/health`, `/api/meta` |
 | `deploy.sh` shell-correct | `bash -n`, `shellcheck` |
-| migrate-aborts-deploy | point `.env` at an unreachable DB → `deploy.sh` exits non-zero, no `api` recreate |
+| migrate-via-`node` works in the image | the local `deploy.sh` run exercises it — assert "migrate: up to date" in logs |
+| migrate-aborts-deploy | `.env` → unreachable DB → `deploy.sh` non-zero, no `api` recreate |
+| tag assertion fires | request `TAG=sha-doesnotexist` → pull fails (or) running≠expected → exit 1 |
 | rollback | `deploy.sh sha-<prev>` locally → older image runs |
-| manual staging deploy | 6b — owner runs it on the LXC |
-| auto deploy | 6e — trivial commit to `main` → `deploy-staging` green → staging updated |
-| health-check gate | temporarily break the web container → `Verify staging health` step fails |
+| manual staging deploy | 6b |
+| auto deploy + on-box health gate | 6e — trivial `main` commit → `deploy-staging` green → staging updated; break `web` → job red |
 
-No unit/component tests — infra only. `pnpm verify` is untouched; the CI
-`verify` job and its required-check status are unaffected.
+No unit/component tests — infra only. `pnpm verify` and the required `verify`
+check are untouched.
 
-## Open decisions — resolved with recommendations
+## Open decisions — resolved
 
-| # | Decision | Recommendation | Why |
+| # | Decision | Choice | Why |
 |---|---|---|---|
-| 1 | deploy in `ci.yml` job vs separate `workflow_run` file | **job in `ci.yml`**, `needs: build-images` | correct ordering, one visible run, `github.sha` in hand |
-| 2 | box gets `deploy/` via `git clone`+`pull` vs `scp`/`rsync` | **git clone + `git pull --ff-only`** | one dir, always consistent with `main`, normal pattern |
-| 3 | SSH auth + host-key policy | **Tailscale SSH** (`tailscale up --ssh` + ACL grant); fall back to a `STAGING_SSH_KEY` secret + `accept-new` if `tailscale ssh` is fiddly | no SSH key or `known_hosts` secret to manage or rotate on LXC rebuild; auth + host identity from the tailnet + ACL; consistent with D1 |
-| 4 | `.env` location on box | **`~/dtg/deploy/.env`**, gitignored | one directory to reason about |
-| 5 | `web` port binding | **`${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080`** | localhost default (tailscale serve is the entry); `.env` opens it to LAN; prod-reuse stays clean |
-| 6 | post-deploy health check in CI | **yes** — curl the `tailscale serve` HTTPS path | real signal; also verifies D3 |
-| 7 | one compose file for staging + prod | **yes** | ADR-0010 "byte-identical"; DAMN-30 reuses verbatim |
-| 8 | `deploy-staging` a required check? | **no** | a deploy failure shouldn't block an already-merged commit |
+| 1 | deploy in `ci.yml` vs `workflow_run` file | job in `ci.yml`, `needs: build-images` | ordering, one visible run, `github.sha` in hand |
+| 2 | box gets `deploy/` via | `git clone` + `git pull --ff-only` | one dir, consistent with `main` |
+| 3 | LXC flavor | **unprivileged**, VM fallback, privileged off the table | breakout containment; LAN exposure + shared box |
+| 4 | `.env` location | `~/dtg/deploy/.env`, gitignored | one directory |
+| 5 | `web` binding | `${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080` | loopback default; `.env` opens to LAN; prod-reuse clean |
+| 6 | health check | **on the box** over SSH, not runner-side curl | ACL + userspace-networking make runner-side impossible |
+| 7 | one compose file staging+prod | yes | ADR-0010; DAMN-30 reuses verbatim |
+| 8 | `deploy-staging` required check? | no | shouldn't block an already-merged commit |
+| D4 | SSH mechanism | Tailscale SSH (`action: accept` ACL); fallback = key + `command=` + `ProxyCommand` | nothing to rotate on rebuild; auth from the tailnet |
+| — | `migrate` invocation | `node packages/db/src/migrate.ts` | no runtime pnpm download |
+| — | migrate orchestration | explicit in `deploy.sh`; `api`→`postgres` only in compose | one mechanism |
 
 ## Risks
 
-- **Docker-in-LXC is the real risk** (issue's own words). Mitigation: 6b is a hand-run shakeout before any automation; if it fights hard, ADR-0004's escape hatch is "promote staging to a VM" — not more abstraction.
-- **`tailscale/github-action` + OAuth + ACL + Tailscale SSH** — first-time setup friction, and `tailscale ssh` from an ephemeral CI node is a less-trodden path. Mitigations: decision #3 falls back to a `STAGING_SSH_KEY` secret + `accept-new`; D3 falls back to plain HTTP over the tailnet; the ephemeral-node pattern is well documented and DAMN-29 needs it regardless. 6c gates on `tailscale ssh` actually working before 6d is written against it.
-- **Deploy races the image publish** — mitigated by `needs: build-images` (same run) and deploying the exact `sha-${{ github.sha }}` tag, not `latest`.
-- **`git pull` on the box hits a conflict** — mitigated by `--ff-only` (fails loudly) and `.env` being the only untracked file.
-- **Migration/rollback asymmetry** — real once DAMN-2 ships; documented now, not solved here.
-- **ADR-0004 not pre-decided** — using Tailscale for the private CI→box path is an admin-access use ADR-0004 already assumes; it does not bias the open Cloudflare-vs-Funnel choice for *public* visitor traffic (that's DAMN-30). Stated so the design reviewer doesn't read it as scope creep.
+- **Unprivileged Docker-in-LXC** — the real risk (issue's own words). Mitigation: 6b is a hand-run shakeout; named-volume `pgdata` sidesteps the worst UID friction; VM fallback if it truly won't go.
+- **`tailscale/github-action` + OAuth + ACL + `tailscale ssh` from an ephemeral node** — first-time, less-trodden. 6c gates on it working before 6d is written. Fallback: SSH key + `ProxyCommand`.
+- **Deploy races the image publish** — `needs: build-images`, deploys the exact `sha-${{ github.sha }}`, not `latest`.
+- **Silent stale staging** — `--ff-only` fails loudly; tag assertion (S9) catches "old container still healthy".
+- **Migration/rollback asymmetry** and **baseline-regeneration rollback** — documented in the runbook, not solved here (ADR-0007 / DAMN-2).
+- **`X-Forwarded-Proto` through `tailscale serve`→Caddy→api** — latent; no auth to break yet; tracked as a DAMN-1 follow-up (`trusted_proxies` + `trust proxy`).
+- **ADR-0004 not pre-decided** — Tailscale on the private CI→box path is admin-access use ADR-0004 already assumes; the public Cloudflare-vs-Funnel choice (DAMN-30) is untouched.
