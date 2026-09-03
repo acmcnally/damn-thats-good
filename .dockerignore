@@ -9,6 +9,7 @@
 .github
 .vscode
 .claude
+deploy
 *.log
 
 # Secrets never enter an image

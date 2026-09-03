@@ -5,6 +5,7 @@ coverage/
 *.tsbuildinfo
 .env
 .env.local
+deploy/.env
 *.log
 .DS_Store
 .turbo/
