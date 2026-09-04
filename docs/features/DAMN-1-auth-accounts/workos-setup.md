@@ -6,11 +6,10 @@ Owner-executed checklist against the existing WorkOS account. Not app code; noth
 - [x] Confirm **Staging** and **Production** environments both exist under the account.
 - [x] Both environments: enable **email OTP ("Magic Auth")** as the sign-in method.
 - [x] Both environments: toggle **"Sign up" OFF** in Authentication settings. Done 2026-09-04.
-- [ ] **Staging: register BOTH as redirect URIs** (same environment, same list — local dev and deployed staging share Staging's WorkOS keys per ADR-0010; each instance requests whichever matches its own origin at runtime, nothing to choose between manually):
-  - `http://localhost:5173/callback`
-  - `https://<staging-tailnet-hostname>/callback`
-- [ ] **Staging: set the Initiate Login URI to `https://<staging-tailnet-hostname>/login`.** Single-value field (confirmed live, unlike redirect URIs) — used for WorkOS-*initiated* flows (admin impersonation, shared links), not the everyday OTP path. Staging is the only meaningful target; local dev has no real use case here (nothing else can reach `localhost:5173`).
-- [ ] Send an invite (dashboard → Users → Invites) for yourself and any V1 testers.
+- [x] **Staging: register BOTH as redirect URIs** — `http://localhost:5173/callback` and `https://<staging-tailnet-hostname>/callback`. Done 2026-09-04.
+- [x] **Staging: set the Initiate Login URI** to `https://<staging-tailnet-hostname>/login`. Done 2026-09-04.
+- [ ] Send an invite (dashboard → Users → Invites) for yourself and any V1 testers. *(Not blocking implementation — the pre-flight invite already proved the mechanism works.)*
 - [ ] Branding pass — logo, colors, light/dark, corner radius. Cosmetic, no rush.
-- [ ] Copy the **Staging** API key + Client ID into local `.env` (git-ignored) and staging's `deploy/.env` on the box (`chmod 600`) — that's the only copy, no password manager (owner doesn't use one).
+- [x] Copy the **Staging** API key + Client ID into local `.env` — confirmed present, 2026-09-04.
+- [ ] Copy the same into staging's `deploy/.env` on the box (`chmod 600`) — **please confirm this one specifically**, since it's on a different machine I can't check myself.
 - [ ] Production keys: **not needed until DAMN-30** — don't configure the prod `.env` yet.
