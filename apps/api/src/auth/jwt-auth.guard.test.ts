@@ -1,12 +1,16 @@
 import type { ExecutionContext } from '@nestjs/common';
-import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Env } from '../config/env';
-import type { UsersService } from '../users/users.service';
+import { EmailConflictError, type UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import {
   JwksUnavailableError,
@@ -103,6 +107,17 @@ describe('JwtAuthGuard', () => {
 
     await expect(guard.canActivate(context)).rejects.toMatchObject(
       new ServiceUnavailableException({ error: 'auth_unavailable' }),
+    );
+  });
+
+  it('409s, not 500s, when provisioning collides on email (a different WorkOS identity already owns it)', async () => {
+    const { reflector, context } = contextWith({ headers: { authorization: 'Bearer x' } });
+    const verify = vi.fn().mockResolvedValue({ sub: 'user_123' });
+    const findOrProvision = vi.fn().mockRejectedValue(new EmailConflictError());
+    const guard = guardWith({ reflector, verify, findOrProvision });
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject(
+      new ConflictException({ error: 'email_conflict' }),
     );
   });
 

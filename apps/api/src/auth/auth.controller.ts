@@ -3,17 +3,18 @@ import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { Env } from '../config/env';
-import { type AuthenticatedUser, CurrentUser } from './authenticated-user';
+import { CurrentUser } from './authenticated-user';
 import { Public } from './public.decorator';
 
 @Controller()
 export class AuthController {
   constructor(private readonly config: ConfigService<Env, true>) {}
 
-  /** Protected by the global guard — no decorator needed. */
+  /** Protected by the global guard — no decorator needed. `req.user` is already
+   * `MeResponse`-shaped (see authenticated-user.ts), so no re-mapping here. */
   @Get('me')
-  me(@CurrentUser() user: AuthenticatedUser): MeResponse {
-    return { id: user.id, email: user.email };
+  me(@CurrentUser() user: MeResponse): MeResponse {
+    return user;
   }
 
   /**

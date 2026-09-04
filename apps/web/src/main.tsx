@@ -11,13 +11,24 @@ if (!container) {
 }
 const root = createRoot(container);
 
+const LOADING = (
+  <StrictMode>
+    <main style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem' }}>
+      <p>Loading…</p>
+    </main>
+  </StrictMode>
+);
+// Render immediately, synchronously — first paint shouldn't wait on the network. Only
+// AuthKitProvider (needing config.workosClientId below) does.
+root.render(LOADING);
+
 /**
- * `GET /api/config` before anything else mounts — `AuthKitProvider` needs the WorkOS
- * Client ID, and it has to come from a runtime source (not a Vite build-time env var):
- * the same built image is promoted from staging to prod unchanged, so anything baked
- * in at build time would carry staging's value into prod. `redirectUri` needs no fetch
- * at all — `window.location.origin` is already correct in every environment, since
- * it's derived from wherever the code is actually executing.
+ * `GET /api/config` before `AuthKitProvider` mounts — it needs the WorkOS Client ID,
+ * and that has to come from a runtime source (not a Vite build-time env var): the same
+ * built image is promoted from staging to prod unchanged, so anything baked in at
+ * build time would carry staging's value into prod. `redirectUri` needs no fetch at
+ * all — `window.location.origin` is already correct in every environment, since it's
+ * derived from wherever the code is actually executing.
  */
 async function bootstrap(): Promise<void> {
   const res = await fetch('/api/config');

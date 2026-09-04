@@ -154,6 +154,12 @@ function main(): number {
       dcRun(['up', '-d', '--wait', '--wait-timeout', '180', '--no-deps', 'api', 'web']);
     } else {
       console.log('[e2e] reusing the running stack.');
+      // A stack left healthy by a plain `docker compose up` (no bypass) would
+      // otherwise be reused as-is, silently missing E2E_AUTH_BYPASS=1 — every request
+      // would then just 401, an unrelated-looking failure. `up` only recreates a
+      // container whose config actually changed, so this is a fast no-op when the
+      // stack was already started with the bypass (e.g. a previous `pnpm e2e`).
+      dcRun(['up', '-d', '--wait', '--wait-timeout', '60', '--no-deps', 'api']);
     }
   } catch (err) {
     if (weStarted) {

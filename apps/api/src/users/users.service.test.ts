@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { UserLookup } from '../auth/user-lookup';
 import type { DatabaseService } from '../database/database.service';
-import { UsersService } from './users.service';
+import { EmailConflictError, UsersService } from './users.service';
 
 /** Minimal fluent mock of the two Drizzle chains `UsersService` uses:
  * `select({...}).from().where().limit()` and
@@ -57,6 +57,47 @@ describe('UsersService', () => {
       });
       expect(lookup).toHaveBeenCalledWith('sub_2');
       expect(insert).toHaveBeenCalledOnce();
+    });
+
+    it('lower-cases the email before storing it (WorkOS treats it case-insensitively)', async () => {
+      const { database } = databaseWith({
+        selectResult: [],
+        insertResult: [{ id: 'u3', email: 'mixed@case.com' }],
+      });
+      const valuesSpy = vi.fn(() => ({
+        onConflictDoUpdate: vi.fn(() => ({
+          returning: vi.fn().mockResolvedValue([{ id: 'u3', email: 'mixed@case.com' }]),
+        })),
+      }));
+      (database.db.insert as ReturnType<typeof vi.fn>).mockReturnValue({ values: valuesSpy });
+      const lookup = vi.fn().mockResolvedValue({ email: 'Mixed@Case.com' });
+      const service = new UsersService(database, { lookup } as UserLookup);
+
+      await service.findOrProvision('sub_3');
+
+      expect(valuesSpy).toHaveBeenCalledWith({
+        workosUserId: 'sub_3',
+        email: 'mixed@case.com',
+      });
+    });
+
+    it('maps a unique-violation on the email constraint to EmailConflictError, not a raw 500', async () => {
+      const { database } = databaseWith({ selectResult: [], insertResult: [] });
+      const pgError = Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint_name: 'users_email_unique',
+      });
+      (database.db.insert as ReturnType<typeof vi.fn>).mockReturnValue({
+        values: vi.fn(() => ({
+          onConflictDoUpdate: vi.fn(() => ({
+            returning: vi.fn().mockRejectedValue(pgError),
+          })),
+        })),
+      });
+      const lookup = vi.fn().mockResolvedValue({ email: 'taken@example.com' });
+      const service = new UsersService(database, { lookup } as UserLookup);
+
+      await expect(service.findOrProvision('sub_4')).rejects.toBeInstanceOf(EmailConflictError);
     });
   });
 

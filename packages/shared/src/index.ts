@@ -25,3 +25,11 @@ export interface MeResponse {
   id: string;
   email: string;
 }
+
+/**
+ * DAMN-1 E2E auth bypass cookie name — crosses the web/api boundary (set by
+ * `e2e/support/auth.ts`, read by the frontend's auth gate and the API's `JwtAuthGuard`),
+ * so it's declared once here rather than as three independent string literals that
+ * could silently drift apart.
+ */
+export const E2E_BYPASS_COOKIE = 'e2e_bypass';

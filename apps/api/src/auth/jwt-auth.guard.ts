@@ -1,5 +1,7 @@
+import { E2E_BYPASS_COOKIE, type MeResponse } from '@dtg/shared';
 import {
   type CanActivate,
+  ConflictException,
   type ExecutionContext,
   Inject,
   Injectable,
@@ -11,8 +13,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import type { Env } from '../config/env';
-import { UsersService } from '../users/users.service';
-import type { AuthenticatedUser } from './authenticated-user';
+import { EmailConflictError, UsersService } from '../users/users.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import {
   JwksUnavailableError,
@@ -24,22 +25,17 @@ import {
 import { UserLookupError } from './user-lookup';
 
 interface RequestWithAuth extends Request {
-  user?: AuthenticatedUser;
+  user?: MeResponse;
 }
-
-/** Same-origin cookie `loginAsTestUser` (e2e/support/auth.ts) sets on `page` before
- * navigation — rides along automatically on every same-origin fetch, no frontend code
- * needs to attach it. Deliberately no header-based sibling for direct `request.*`
- * calls — DAMN-1 has no actual use for one (see technical-design.md); build it later,
- * scoped to whatever real need creates it. */
-const E2E_BYPASS_COOKIE = 'e2e_bypass';
 
 /**
  * Global guard (`APP_GUARD`) — every route is authenticated by default; `@Public()`
  * opts a route out. See technical-design.md for the full error-mapping rationale and
- * the E2E-bypass trust invariant (the summary: the bypass cookie/header carry zero
- * trust on their own — the server-side `E2E_AUTH_BYPASS` env var is the sole
- * authority, and it is never set on prod).
+ * the E2E-bypass trust invariant (the summary: the bypass cookie carries zero trust on
+ * its own — the server-side `E2E_AUTH_BYPASS` env var is the sole authority, and it is
+ * never set on prod). No header-based sibling for direct `request.*` calls,
+ * deliberately — DAMN-1 has no actual use for one; build it later, scoped to whatever
+ * real need creates it.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -90,12 +86,15 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private async provision(workosUserId: string): Promise<AuthenticatedUser> {
+  private async provision(workosUserId: string): Promise<MeResponse> {
     try {
       return await this.usersService.findOrProvision(workosUserId);
     } catch (err) {
       if (err instanceof UserLookupError) {
         throw new ServiceUnavailableException({ error: 'auth_unavailable' });
+      }
+      if (err instanceof EmailConflictError) {
+        throw new ConflictException({ error: 'email_conflict' });
       }
       throw err;
     }

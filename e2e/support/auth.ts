@@ -1,3 +1,4 @@
+import { E2E_BYPASS_COOKIE } from '@dtg/shared';
 import type { Page } from '@playwright/test';
 
 /**
@@ -15,5 +16,5 @@ import type { Page } from '@playwright/test';
  */
 export async function loginAsTestUser(page: Page): Promise<void> {
   const baseUrl = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8080';
-  await page.context().addCookies([{ name: 'e2e_bypass', value: '1', url: baseUrl }]);
+  await page.context().addCookies([{ name: E2E_BYPASS_COOKIE, value: '1', url: baseUrl }]);
 }

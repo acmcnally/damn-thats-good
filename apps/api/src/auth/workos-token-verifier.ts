@@ -40,6 +40,11 @@ export class WorkosTokenVerifier implements TokenVerifier {
       ({ payload } = await jwtVerify(bearerToken, this.jwks, {
         issuer: this.issuer,
         clockTolerance: 5,
+        // Pinned explicitly rather than left to whatever the JWKS entries happen to
+        // declare — WorkOS signs AuthKit tokens with RS256 (standard for JWKS-published
+        // keys); if that ever changes, verification should fail loudly, not silently
+        // widen to accept whatever shows up.
+        algorithms: ['RS256'],
       }));
     } catch (err) {
       throw classify(err);
