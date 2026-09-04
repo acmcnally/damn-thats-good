@@ -54,6 +54,7 @@ Deliberately minimal: no name/avatar/role columns (that's `profiles`, out of sco
 ### Endpoints
 
 - `GET /api/me` — returns `{ id, email }` from `req.user`. Protected by the global guard (no decorator needed).
+- `GET /api/config` — new, `@Public()`. Returns `{ workosClientId }`, re-serving the API's own `WORKOS_CLIENT_ID` env var. The only reason this exists: the frontend needs the Client ID to construct `AuthKitProvider`, and it must come from a runtime source, not a build-time one (see Config / env changes for why). Not a secret — a WorkOS Client ID is meant to be public in an OAuth public client, same as it appearing in the browser's own auth requests regardless.
 - No sign-out endpoint on our API — sign-out is client-side (AuthKit SDK) plus WorkOS-side session revocation; nothing for our API to do.
 - Remove `MetaModule`, `GET /api/meta`, and its `MetaResponse` type from `packages/shared`.
 
@@ -87,10 +88,12 @@ Implements the contract already stubbed in `e2e/support/auth.ts`, resolving both
 ## Config / env changes
 
 - `apps/api/src/config/env.ts`: add `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` (both required — fail loud on boot if missing), `E2E_AUTH_BYPASS` (optional, defaults falsy).
-- `apps/web`: `VITE_WORKOS_CLIENT_ID`, `VITE_WORKOS_REDIRECT_URI` — build-time is fine for these (they're not secrets and don't vary staging/prod in a way that breaks image promotion the way the E2E flag would; if that turns out wrong once redirect URIs are nailed down per-environment, revisit before merge).
+- **No `VITE_WORKOS_CLIENT_ID` / `VITE_WORKOS_REDIRECT_URI` — reconsidered, dropped.** The original plan treated these as Vite build-time vars, on the theory that they're not secrets so baking them in was harmless. Wrong: the deploy model promotes the *same built image* from staging to prod unchanged (ADR-0010), so a value baked in during the one-time CI build would still be in the bundle after promotion — the wrong WorkOS Client ID (staging's environment, not prod's) and the wrong redirect URI (staging's domain, not prod's). Same failure shape as the `E2E_AUTH_BYPASS` build-vs-runtime issue above; missed here the first time. Fixed by removing both vars entirely, not by moving them somewhere else:
+  - `redirectUri` is computed in the browser as `` `${window.location.origin}/callback` `` — no config at all. Automatically correct in every environment, since it's derived from wherever the code is actually executing.
+  - `clientId` is fetched from the new `GET /api/config` endpoint (see Endpoints) at boot, before `AuthKitProvider` mounts — re-serving the API's own `WORKOS_CLIENT_ID`, which is already a correctly-per-environment runtime value (read by `ConfigModule` at boot, not baked at build time). No new env var needed anywhere.
 - **Root `docker-compose.yml` (the local/dev stack, distinct from `deploy/compose.yaml`) needs the same `WORKOS_API_KEY`/`WORKOS_CLIENT_ID`/`E2E_AUTH_BYPASS` wiring into its `api` service.** Easy to miss because the design's other env-var bullets all talk about `deploy/compose.yaml` — this is the one that backs local `docker compose up` and `pnpm e2e`'s local mode, so it needs its own pass, not an assumption that the deploy-side change covers it.
 - `.env.example`, `deploy/.env.example`: document the new vars (WorkOS Staging keys for local dev + staging; Production keys only ever touch the prod box, out of scope until DAMN-30).
-- `AuthKitProvider` mounted in `apps/web/src/main.tsx` (or a new `AuthProvider` wrapper), `clientId` + `redirectUri` from the Vite env vars.
+- `AuthKitProvider` mounted in `apps/web/src/main.tsx` (or a new `AuthProvider` wrapper): fetch `GET /api/config` first, mount the provider once `workosClientId` is back, with `redirectUri={`${window.location.origin}/callback`}`. A brief loading state while that one fetch resolves.
 - `/login` route: WorkOS's dashboard requires a registered Sign-in URL that calls `signIn()` (used for admin-impersonation / shared links, not our primary flow, but AuthKit expects it to exist). No router library is in the app today (`apps/web/src/App.tsx` renders unconditionally) and adding one is out of proportion for two auth-only paths — `/login` is distinguished from `/` with a plain `window.location.pathname` check, not a routing library. (DAMN-2 onward will likely want real client-side routing once there's more than one screen; not this issue's problem to solve early.) The `/callback` redirect URI needs no route component at all — `AuthKitProvider`'s own `onRedirectCallback` handling intercepts it directly, before app code sees it.
 
 ## WorkOS dashboard runbook (owner-executed)
@@ -101,7 +104,7 @@ Documented as its own doc (`docs/features/DAMN-1-auth-accounts/workos-setup.md`)
 1. Confirm Staging + Production environments exist (both do — not yet configured).
 2. Both environments: enable email OTP ("Magic Auth") as the sign-in method.
 3. Both environments: **toggle "Sign up" OFF** (Authentication settings) — already verified live in step 0 above for Staging; repeat the same check for Production before it goes live (DAMN-30).
-4. Both environments: register the redirect URI (`http://localhost:5173/callback` for local dev; staging's tailnet hostname `/callback` for staging) and the `/login` Sign-in URL.
+4. **Staging environment: register both** `http://localhost:5173/callback` (local dev) **and** `https://<staging-tailnet-hostname>/callback` (deployed staging) **as redirect URIs** — both are needed on the *same* environment, since local dev and deployed staging share Staging's WorkOS keys (ADR-0010), and each running instance requests the one matching its own origin at runtime (nothing to choose between on our side — see `technical-design.md`'s Config / env changes section). Also register the `/login` Sign-in URL for both origins if the dashboard field supports more than one value — check live; if it's single-value only, prioritize the staging URL.
 5. Send yourself (and any V1 testers) an invite via the dashboard Invites tab.
 6. Branding pass (logo/colors/light-dark) — cosmetic, do whenever.
 7. Copy Staging API key + Client ID into local `.env` and staging's `deploy/.env` (password manager, per ADR-0010).
