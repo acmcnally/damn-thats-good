@@ -1,6 +1,6 @@
 # ADR-0001: Frontend/backend stack — React + TypeScript, NestJS
 
-**Status:** Accepted — core stack (React, TypeScript, NestJS, REST) decided. Open sub-decision: HTTP adapter (Express vs Fastify), leaning Express, confirm when wiring auth. Offline scope settled: read-only, V4 only.
+**Status:** Accepted — core stack (React, TypeScript, NestJS, REST) decided. HTTP adapter **locked: Express** (`@nestjs/platform-express`), confirmed at auth wiring (DAMN-1, 2026-09-04) — see "Express vs Fastify adapter" below. Offline scope settled: read-only, V4 only.
 **Decision drivers:** skill development (portability lens) · product preference
 
 ## Context
@@ -12,7 +12,7 @@ The frontend framework choice is a **skill-development choice**: the explicit go
 ## Decision
 
 - **Frontend:** React + TypeScript. Responsive and installable (manifest) from the start. **No service worker in V1.** Offline support is read-only and lands in V4 — see Consequences.
-- **Backend:** Node.js + TypeScript, using **NestJS** as the application framework. Adapter (Express vs Fastify) is **not yet locked** — see Consequences.
+- **Backend:** Node.js + TypeScript, using **NestJS** as the application framework, on the **Express** platform adapter (`@nestjs/platform-express`) — see Consequences.
 - **API style:** REST, resource-oriented.
 - Shared TypeScript types between frontend and backend (see ADR-0005 on monorepo tooling).
 
@@ -28,16 +28,21 @@ The frontend framework choice is a **skill-development choice**: the explicit go
 - NestJS's DI/module/guard system gives natural homes for cross-cutting concerns like visibility checks and auth guards as the sharing model (V3) comes online.
 - More upfront ceremony/boilerplate than Express for simple endpoints — accepted as the cost of the architecture.
 
-### Open: Express vs Fastify adapter
+### Express vs Fastify adapter — locked: Express (DAMN-1, 2026-09-04)
 
-The original decision took the Fastify adapter "for better throughput," but throughput is irrelevant at this project's scale, so it is not a real tie-breaker. The tie-breaker is ecosystem friction:
+The original decision took the Fastify adapter "for better throughput," but throughput is irrelevant at this project's scale, so it was never a real tie-breaker. `@nestjs/platform-express` went in provisionally with the walking skeleton (DAMN-26), with the real call deferred to auth wiring "because that is where adapter friction shows first." Auth wiring (DAMN-1) is now here, and the call is **Express**.
 
-- **Express adapter:** far more common in NestJS examples and tutorials; broadest middleware compatibility; the more standard, more documented path (portability lens). ADR-0003 landed on a managed provider (WorkOS AuthKit), so the adapter barely matters for auth — it is mostly frontend + a JWT-verification middleware — but Express keeps the broadest option open for any other middleware.
-- **Fastify adapter:** officially supported but less-travelled — a second less-common path to debug, with little upside here.
+**Categories: skill development + scope & simplicity, with a portability tiebreak — all point the same way.**
 
-**Leaning: Express adapter**, unless a concrete reason to prefer Fastify emerges during the V1 build. Settle this once the auth integration (ADR-0003) is wired up — that is where adapter friction shows first.
+- **The auth friction this decision was waiting for did not materialise.** ADR-0003 landed on a managed provider (WorkOS AuthKit) with client-side PKCE — the browser talks to WorkOS directly. The API's entire auth surface is one NestJS guard that verifies a bearer JWT against the WorkOS JWKS (via `jose`), plus just-in-time user provisioning. No Passport, sessions, cookies, CSRF middleware, or OAuth callback route on the API. That guard is identical on both adapters, so auth exerts no pull either way and the decision falls back to the general ecosystem argument.
+- **Skill development (primary):** Express is the adapter every NestJS tutorial, recipe, and third-party example assumes. With React + TS + NestJS + Drizzle + Postgres + self-hosting all being learned at once, Fastify would add a standing "translate the example" tax on every problem hit, for benefits this project structurally cannot use.
+- **Portability:** Express is the industry-default Node HTTP layer. The marketable skill is NestJS itself; the layer beneath it should be the boring, standard one.
+- **Scope & simplicity:** nothing on the V1–V4 roadmap pulls toward Fastify (recipe/version model, search, URL import, photo serving, PWA/offline are all either DB-side, client-side, or adapter-neutral; realtime/CRDT is rejected in ADR-0007). A future WorkOS webhook needing raw-body signature verification (V3) is well-supported on both.
+- **Reversibility is asymmetric in Express's favour.** Idiomatic NestJS keeps platform specifics out of handlers, so Express → Fastify later is a one-package, one-line-in-`main.ts` change plus a re-test *if* a concrete need ever appears. The reverse — hitting an undocumented Fastify wall and migrating under duress — is the painful direction.
 
-**Update (DAMN-26):** the `@nestjs/platform-express` adapter is in use as of the walking-skeleton build. This is provisional — the decision is still settled at auth wiring, not here; nothing so far depends on Express specifically.
+**Fastify would have been right** only under conditions that do not hold here: being performance-bound, wanting JSON-schema validation as the primary pattern (NestJS pushes toward `class-validator` / Zod instead), or already knowing Fastify well.
+
+This is not resting on external input (category 4), so it is locked, not kept revisitable.
 
 ### PWA / offline scope (settled)
 

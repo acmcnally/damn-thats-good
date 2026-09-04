@@ -3,10 +3,11 @@ import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
-import { MetaModule } from './meta/meta.module';
+import { UsersModule } from './users/users.module';
 
 // Repo-root .env, resolved from this file's location (not cwd) so it works however the
 // process is launched. In containers the file is absent — ConfigModule then just reads
@@ -18,7 +19,9 @@ const repoEnvFile = fileURLToPath(new URL('../../../.env', import.meta.url));
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, envFilePath: [repoEnvFile] }),
     DatabaseModule,
     HealthModule,
-    MetaModule, // SCAFFOLD(DAMN-26)
+    UsersModule,
+    AuthModule, // registers the global JwtAuthGuard (DAMN-1) — every route is
+    // authenticated by default from here on; @Public() opts a route out.
   ],
 })
 export class AppModule {}

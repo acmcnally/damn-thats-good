@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@dtg/shared": "workspace:*",
+    "@workos-inc/authkit-react": "^0.16.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
