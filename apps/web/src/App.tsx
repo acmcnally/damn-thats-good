@@ -1,57 +1,65 @@
-import type { MetaResponse } from '@dtg/shared';
-import { useEffect, useState } from 'react';
+import { useAuth } from '@workos-inc/authkit-react';
+import { useEffect } from 'react';
 
-type Fetch =
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'ok'; data: MetaResponse };
+import { hasE2eBypassCookie } from './e2eBypass';
+import { Landing } from './Landing';
 
-async function fetchMeta(signal: AbortSignal): Promise<MetaResponse> {
-  const res = await fetch('/api/meta', { signal });
-  if (!res.ok) {
-    throw new Error(`API responded ${res.status}`);
-  }
-  return (await res.json()) as MetaResponse;
+const LOADING = (
+  <main style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem' }}>
+    <p>Loading…</p>
+  </main>
+);
+
+/**
+ * `/login` — WorkOS's dashboard requires a registered Initiate Login URI that calls
+ * `signIn()` (WorkOS-initiated flows: admin impersonation, shared links — not the
+ * everyday path, but AuthKit expects the route to exist). No router: a plain pathname
+ * check is proportionate for two auth-only paths (see technical-design.md).
+ */
+function LoginPage() {
+  const { signIn } = useAuth();
+  useEffect(() => {
+    signIn();
+  }, [signIn]);
+  return LOADING;
 }
 
-export function App() {
-  const [state, setState] = useState<Fetch>({ status: 'loading' });
-
+/** Not authenticated (and not the E2E bypass) — trigger the redirect to hosted AuthKit
+ * as a side effect, not during render, so React's dev-mode double-render doesn't fire
+ * it twice. */
+function SignInRedirect() {
+  const { signIn } = useAuth();
   useEffect(() => {
-    const controller = new AbortController();
-    fetchMeta(controller.signal)
-      .then((data) => setState({ status: 'ok', data }))
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setState({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
-      });
-    return () => controller.abort();
-  }, []);
+    signIn();
+  }, [signIn]);
+  return LOADING;
+}
 
-  return (
-    <main style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem', lineHeight: 1.5 }}>
-      <h1>Damn That&apos;s Good</h1>
-      <p>Walking skeleton — this value made the round trip web → API → Postgres → back:</p>
+/**
+ * The whole SPA sits behind this gate — no public routes except the AuthKit flow
+ * itself (`/login`, and `/callback`, which `AuthKitProvider`'s own redirect handling
+ * intercepts before any route component sees it). The E2E bypass cookie skips the
+ * gate entirely; the server independently enforces the real invariant on every `/api/*`
+ * call regardless (see technical-design.md).
+ */
+export function App() {
+  const { isLoading, user, signOut } = useAuth();
 
-      {state.status === 'loading' && <p>Loading…</p>}
+  if (window.location.pathname === '/login') {
+    return <LoginPage />;
+  }
 
-      {state.status === 'error' && <p role="alert">Couldn&apos;t reach the API: {state.message}</p>}
+  if (hasE2eBypassCookie()) {
+    return <Landing onSignOut={signOut} />;
+  }
 
-      {state.status === 'ok' && (
-        <dl>
-          <dt>name</dt>
-          <dd>{state.data.name}</dd>
-          <dt>seeded at</dt>
-          <dd>
-            <time dateTime={state.data.seededAt}>
-              {new Date(state.data.seededAt).toLocaleString()}
-            </time>
-          </dd>
-        </dl>
-      )}
-    </main>
-  );
+  if (isLoading) {
+    return LOADING;
+  }
+
+  if (!user) {
+    return <SignInRedirect />;
+  }
+
+  return <Landing onSignOut={signOut} />;
 }

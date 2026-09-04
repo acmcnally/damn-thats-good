@@ -8,6 +8,12 @@ name: dtg
 x-app-env: &app-env
   DATABASE_URL: postgres://${POSTGRES_USER:-dtg}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-dtg}
   NODE_ENV: production
+  WORKOS_API_KEY: ${WORKOS_API_KEY:?set WORKOS_API_KEY in deploy/.env}
+  WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID:?set WORKOS_CLIENT_ID in deploy/.env}
+  # Staging only — set to 1 in staging's deploy/.env, never in prod's (DAMN-1). Defaults
+  # empty/falsy so a .env that never mentions it is safe by default. DAMN-30 tracks a
+  # hard deploy.sh guard against this ever being 1 on prod regardless.
+  E2E_AUTH_BYPASS: ${E2E_AUTH_BYPASS:-}
 
 services:
   postgres:

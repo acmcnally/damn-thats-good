@@ -136,6 +136,12 @@ function main(): number {
   const keepStack = keep !== undefined && keep !== '' && keep !== '0' && keep !== 'false';
   const weStarted = state === 'absent';
 
+  // DAMN-1 E2E auth bypass — only ever set here, for the local stack `dcRun` spawns
+  // below (it inherits process.env). Never set for `staging`/`skip` mode, and never on
+  // a real deploy (deploy/compose.yaml's own opt-in is separate — set by hand, staging
+  // only, per the DAMN-1 runbook).
+  process.env.E2E_AUTH_BYPASS = '1';
+
   try {
     if (weStarted) {
       console.log('[e2e] no stack running — building images (first run is slow) and starting…');

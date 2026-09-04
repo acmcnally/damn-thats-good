@@ -1,19 +1,21 @@
-import { sql } from 'drizzle-orm';
-import { check, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
- * SCAFFOLD(DAMN-26): walking-skeleton round-trip table. Nothing real depends on it — it
- * exists only so the skeleton page can render a row that came from Postgres through the
- * API. DAMN-2 brings the real recipe / version schema and regenerates the baseline
- * migration (see docs/features/DAMN-26-local-compose-stack/technical-design.md
- * § "Migration history"); `app_meta` then leaves the schema and the history entirely.
+ * DAMN-1: the app-side anchor for authored versions, book ownership, and the 1:1
+ * Profile (ADR-0003). Holds only the WorkOS user id + email — no credentials, since
+ * auth identity lives at WorkOS. Deliberately minimal: no name/avatar/role columns
+ * (that's `profiles`, out of scope here — DAMN-4/DAMN-14) and no credential-type
+ * column (ADR-0007 — stays agnostic; a V3 Google identity is a separate association,
+ * not a column here).
+ *
+ * Keyed strictly on `workosUserId` (WorkOS's `sub` claim) for authorization — never on
+ * email, which WorkOS itself says can change. `email` is not re-synced after the row is
+ * created (see technical-design.md's "known V1 limitation, accepted").
  */
-export const appMeta = pgTable(
-  'app_meta',
-  {
-    id: integer('id').primaryKey().default(1),
-    name: text('name').notNull(),
-    seededAt: timestamp('seeded_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [check('app_meta_single_row', sql`${t.id} = 1`)],
-);
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workosUserId: text('workos_user_id').notNull().unique(),
+  email: text('email').notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

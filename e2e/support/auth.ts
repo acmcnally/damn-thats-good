@@ -1,27 +1,19 @@
 import type { Page } from '@playwright/test';
 
 /**
- * SCAFFOLD(DAMN-29) — auth-bypass seam for the workflow tier.
+ * DAMN-1 E2E auth-bypass seam for the workflow tier.
  *
- * Today: a no-op. Nothing the smoke test touches (`/`, `/api/health`,
- * `/api/meta`) is authenticated, and no recipe view exists yet.
+ * Real contract (see technical-design.md's "E2E auth bypass" section for the full
+ * reasoning): the API honours a fixed test credential only when `E2E_AUTH_BYPASS=1` is
+ * set on its own process — never client-supplied data, never set on prod. This helper
+ * only attaches the credential (a cookie) to `page`; it carries zero trust on its own.
  *
- * DAMN-1 fills this in. Intended contract (finalise there):
- *
- *  - The API honours a test-only credential ONLY when a dedicated env var is set
- *    on its process (e.g. `E2E_AUTH_BYPASS=1`). Set on the local e2e stack and on
- *    staging; NEVER on prod. `NODE_ENV` cannot be the discriminator —
- *    `deploy/compose.yaml` is byte-identical for staging and prod and sets
- *    `NODE_ENV=production` on both.
- *  - The test `users` row is provisioned server-side when the bypass is on (the
- *    `e2e-staging` run executes on the CI runner, which has no Postgres path to
- *    staging). This helper only attaches the credential (a cookie) to `page`; a
- *    sibling helper returns headers for `request` calls.
- *  - `deploy/compose.yaml` gains `E2E_AUTH_BYPASS: ${E2E_AUTH_BYPASS:-}` in the
- *    `x-app-env` anchor; `e2e/run.ts` passes `E2E_AUTH_BYPASS=1` into the local
- *    stack's `api` service.
+ * Set before any navigation — the cookie is same-origin, so it rides along
+ * automatically on every subsequent `/api/*` fetch the SPA makes, and the frontend's
+ * own auth gate checks for it to skip the real "redirect to AuthKit" flow (there's no
+ * headless way to complete a real email-OTP round trip in CI).
  */
-export function loginAsTestUser(_page: Page): Promise<void> {
-  // no-op until DAMN-1
-  return Promise.resolve();
+export async function loginAsTestUser(page: Page): Promise<void> {
+  const baseUrl = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8080';
+  await page.context().addCookies([{ name: 'e2e_bypass', value: '1', url: baseUrl }]);
 }
