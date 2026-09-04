@@ -52,7 +52,7 @@ Promotion flow: merge to `main` → CI builds the image → deploy to staging �
 
 ### Secrets
 
-- **Not in git. Not in the Compose file.** A single `.env` file on the box, `chmod 600`, owned by the deploy user, referenced by Compose via `env_file`. Its canonical copy lives in the owner's password manager (also required for backup restore — ADR-0009).
+- **Not in git. Not in the Compose file.** A single `.env` file on the box, `chmod 600`, owned by the deploy user, referenced by Compose via `env_file`. **No separate canonical backup copy of the file itself** (owner doesn't use a password manager, and doesn't need one for this): every value it holds is either recoverable from its issuing admin platform (WorkOS dashboard, Tailscale admin console) or regeneratable with box access (`POSTGRES_PASSWORD` — reset directly via `psql` if lost while the box is alive; moot if the box itself is gone, since a fresh box gets a fresh password anyway). Losing the file costs re-collecting/regenerating those values, not losing anything irrecoverable. **The one exception is the backup encryption key (ADR-0009)** — it has no issuing platform to recover it from, so it gets its own answer there, not this one.
 - CI secrets (registry token, SSH key, backup credentials) live in GitHub Actions encrypted secrets.
 - If secret sprawl ever gets painful, the upgrade path is [SOPS](https://github.com/getsops/sops) with an `age` key (encrypted secrets *can* then live in git). Not now.
 
