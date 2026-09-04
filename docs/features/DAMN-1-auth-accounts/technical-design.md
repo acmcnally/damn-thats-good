@@ -107,7 +107,7 @@ Documented as its own doc (`docs/features/DAMN-1-auth-accounts/workos-setup.md`)
 
 ## Test plan
 
-- **Unit:** `WorkosTokenVerifier` claim/expiry/JWKS-failure branches (mocked JWKS), `UsersService.findOrProvision` upsert-on-conflict logic (mocked db), guard's error-mapping branches.
+- **Unit:** `WorkosTokenVerifier` claim/expiry/JWKS-failure branches (mocked JWKS), `UsersService.findOrProvision` upsert-on-conflict logic (mocked db), guard's error-mapping branches. **Named explicitly:** `JwtAuthGuard`, with `E2E_AUTH_BYPASS` unset and the bypass cookie/header present, still requires and enforces real JWT verification — the property the whole "cookie/header alone grant nothing" invariant rests on. This is a code-correctness check only; it cannot see whether a real deployment's `.env` is actually configured correctly, which is what the prod smoke-test idea captured on DAMN-30 is for (deploy-time guard + code-level test + post-deploy live check are three independent layers, not redundant).
 - **Component (Testcontainers Postgres):** `JwtAuthGuard` + `UsersService` against a real Postgres — the concurrent-first-request race (two parallel provisioning calls for the same new `sub` produce one row, using the stub `WorkosUserLookup`), `GET /api/me` round trip, `@Public()` bypass for `/api/health`. WorkOS itself stays mocked (stub `TokenVerifier` + stub `WorkosUserLookup`).
 - **Workflow (Playwright):** replaces the DAMN-26 skeleton assertions — `loginAsTestUser` bypass gets past the auth wall, `GET /api/me` returns the fixed e2e user, sign-out (if reachable without real WorkOS — otherwise assert the sign-out button exists and calls the SDK method, without asserting the full round trip through a real WorkOS session).
 
