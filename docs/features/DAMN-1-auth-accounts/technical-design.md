@@ -107,7 +107,7 @@ Documented as its own doc (`docs/features/DAMN-1-auth-accounts/workos-setup.md`)
 4. **Staging environment: register both** `http://localhost:5173/callback` (local dev) **and** `https://<staging-tailnet-hostname>/callback` (deployed staging) **as redirect URIs** (a list) — both are needed on the *same* environment, since local dev and deployed staging share Staging's WorkOS keys (ADR-0010), and each running instance requests the one matching its own origin at runtime (nothing to choose between on our side — see Config / env changes below). Also set the **Initiate Login URI** — single-value, confirmed live — to `https://<staging-tailnet-hostname>/login`; local dev has no use case for this one.
 5. Send yourself (and any V1 testers) an invite via the dashboard Invites tab.
 6. Branding pass (logo/colors/light-dark) — cosmetic, do whenever.
-7. Copy Staging API key + Client ID into local `.env` and staging's `deploy/.env` (password manager, per ADR-0010).
+7. Copy Staging API key + Client ID into local `.env` and staging's `deploy/.env` (`chmod 600`, git-ignored — that's the only copy).
 
 ## Test plan
 

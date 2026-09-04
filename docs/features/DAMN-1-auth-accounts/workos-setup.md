@@ -12,5 +12,5 @@ Owner-executed checklist against the existing WorkOS account. Not app code; noth
 - [ ] **Staging: set the Initiate Login URI to `https://<staging-tailnet-hostname>/login`.** Single-value field (confirmed live, unlike redirect URIs) — used for WorkOS-*initiated* flows (admin impersonation, shared links), not the everyday OTP path. Staging is the only meaningful target; local dev has no real use case here (nothing else can reach `localhost:5173`).
 - [ ] Send an invite (dashboard → Users → Invites) for yourself and any V1 testers.
 - [ ] Branding pass — logo, colors, light/dark, corner radius. Cosmetic, no rush.
-- [ ] Copy the **Staging** API key + Client ID into local `.env` (git-ignored) and staging's `deploy/.env` on the box (`chmod 600`), and into the password manager per ADR-0010.
+- [ ] Copy the **Staging** API key + Client ID into local `.env` (git-ignored) and staging's `deploy/.env` on the box (`chmod 600`) — that's the only copy, no password manager (owner doesn't use one).
 - [ ] Production keys: **not needed until DAMN-30** — don't configure the prod `.env` yet.
