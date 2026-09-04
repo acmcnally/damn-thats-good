@@ -1,6 +1,6 @@
 # ADR-0009: Backup and disaster recovery
 
-**Status:** Proposed — reasoning complete, no open design questions. Needs an owner go-ahead and a choice of off-site target.
+**Status:** Proposed — reasoning complete. Needs an owner go-ahead and a choice of off-site target. One open sub-item: where the backup encryption key's durable copy lives — see Consequences; decide when this ADR is actually implemented (`DAMN-31`), not before.
 **Decision drivers:** scope & simplicity — but the data-safety requirement itself is non-negotiable
 
 ## Context
@@ -31,4 +31,5 @@ Three tiers:
 - One more moving part: a scheduled `restic`/`rclone` job with its own credentials and monitoring (a failed backup must raise an alert — see ADR-0010 observability).
 - The off-site target is a third party that holds app data. `restic`/`rclone` client-side encryption means they hold *ciphertext* only, which keeps this consistent with the project's data-ownership stance (ADR-0011) — the third party never sees plaintext user content.
 - Recovery Point Objective ≈ 24 h (last off-site push). Recovery Time Objective depends on rebuild speed — the config-as-code tier keeps it to "provision a box, `docker compose up`, restore dump + blobs."
-- Backup encryption key becomes a critical secret: if it is only on the box that dies, the off-site backups are useless. Store the key in the owner's password manager, not just on the server.
+- **Backup encryption key becomes a critical secret, and it's a different case from every other secret in this project (ADR-0010's `.env`).** Those are all either recoverable from an issuing admin platform (WorkOS, Tailscale) or regeneratable with box access. This key has no issuer to recover it from and nothing to regenerate it *from* — if it only ever lived on the box that died, the off-site backups it protects survive but become permanently unreadable, independent of whether the owner still has access to every account/email they own.
+  - **Open, deliberately unresolved here: where does the durable copy live?** The owner doesn't use a password manager, so ADR-0010's old assumption doesn't hold. **Explicit action item for `DAMN-31`** (the issue that actually builds this and generates the key): decide the storage mechanism *then*, with the real backup tooling in hand — not now, speculatively. A single small key is a proportionate thing to store durably in a low-tech way (e.g. a physical copy somewhere safe) even without a password manager; don't reach for new infrastructure to solve it (a dedicated secrets-management service was considered and rejected as disproportionate for this project's scale — see `CLAUDE.md` category 3).
