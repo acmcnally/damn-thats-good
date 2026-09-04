@@ -60,10 +60,13 @@ Deliberately minimal: no name/avatar/role columns (that's `profiles`, out of sco
 
 `UsersService.findOrProvision(sub: string)`:
 
-1. `SELECT` by `workos_user_id`. Hit → return.
-2. Miss → fetch the user's email from the WorkOS API (`userManagement.getUser(sub)`), then **upsert** (`INSERT ... ON CONFLICT (workos_user_id) DO UPDATE ... RETURNING`), not check-then-insert — two concurrent first-requests from the same brand-new session (e.g. two tabs) must not race into a duplicate-row error or a lost update.
+1. `SELECT` by `workos_user_id`. Hit → return as-is — no re-sync of `email` from WorkOS on this path (see "known limitation" below).
+2. Miss → look up the user through a `WorkosUserLookup` interface (`lookup(sub: string): Promise<{ email: string }>`) — the same shape as `TokenVerifier`, for the same reason: a real implementation wraps `userManagement.getUser(sub)`, a stub serves the component test tier, so that tier never needs a live WorkOS (ADR-0012). Then **upsert** (`INSERT ... ON CONFLICT (workos_user_id) DO UPDATE ... RETURNING`), not check-then-insert — two concurrent first-requests from the same brand-new session (e.g. two tabs) must not race into a duplicate-row error or a lost update.
+3. If the `WorkosUserLookup` call itself fails (WorkOS Management API outage — distinct from a JWKS-fetch failure), map it to **503**, same reasoning as the guard's JWKS-failure case: a brand-new user's first request shouldn't surface a WorkOS-side blip as an undifferentiated 500.
 
 No webhook path (no public ingress until DAMN-30) — this is the only provisioning path in V1.
+
+**Known V1 limitation, accepted:** `users.email` is never re-synced after the row is created, on any path, including a later sign-in. In practice this is low-stakes: AuthKit's hosted login flow (what V1 uses) has no self-service "change my email" surface, and no one but the owner has WorkOS dashboard access — so the only way a user's email actually changes is the owner editing it directly in WorkOS, a rare, deliberate, owner-visible action. Impact is cosmetic only (`GET /api/me`'s display) since access control keys on `sub`, never email. Revisit if/when DAMN-4/DAMN-14 build real profile editing, or WorkOS ships self-service account management — either is the natural trigger to add a re-fetch step, not this issue.
 
 ### E2E auth bypass
 
@@ -73,13 +76,16 @@ Implements the contract already stubbed in `e2e/support/auth.ts`, resolving both
 - `loginAsTestUser(page)` sets a cookie (`e2e_bypass=1`) on the browser context before navigation. Same-origin, so it rides along automatically on every `/api/*` fetch the SPA makes — no frontend code needs to know how to attach it.
 - **Frontend** needs one small bypass-awareness change: if that cookie is present, skip the "redirect to AuthKit" gate and render the app directly (there's no headless way to complete a real email-OTP round trip in CI). This must be a **runtime** check (cookie), not a build-time env flag — `deploy/compose.yaml` promotes the *same image tag* from staging to prod, so anything baked in at build time would be identical in both, which is exactly what must not happen here.
 - **API** guard: when `E2E_AUTH_BYPASS=1` and the `e2e_bypass` cookie (or, for direct `request.*` calls with no page context, an `X-E2E-Test-User: 1` header — the sibling helper the scaffold comment anticipates) is present, skip WorkOS verification entirely and provision/return a fixed deterministic test user (`workos_user_id: 'e2e-test-user'`, `email: 'e2e@example.test'`).
-- `deploy/compose.yaml` gains `E2E_AUTH_BYPASS: ${E2E_AUTH_BYPASS:-}` in `x-app-env`; `e2e/run.ts` sets `E2E_AUTH_BYPASS=1` on the local stack; the `e2e-staging` CI job's staging `deploy/.env` sets it (owner applies this by hand per the runbook, once).
+- **Both environments this must actually reach:**
+  - `deploy/compose.yaml` gains `E2E_AUTH_BYPASS: ${E2E_AUTH_BYPASS:-}` in `x-app-env`; the `e2e-staging` CI job's staging `deploy/.env` sets it (owner applies this by hand per the runbook, once).
+  - The **local** stack is a separate file — root `docker-compose.yml`, driven by `e2e/run.ts`, not `deploy/compose.yaml`. It needs the identical `E2E_AUTH_BYPASS: ${E2E_AUTH_BYPASS:-}` addition to its `api` service, *and* `e2e/run.ts` must set `E2E_AUTH_BYPASS=1` in the environment it passes to the `docker compose` invocation before bringing the stack up. Missed in the first draft of this design — without it, local `pnpm e2e` and `docker compose up` both break outright, since `apps/api/src/config/env.ts` will also require `WORKOS_API_KEY`/`WORKOS_CLIENT_ID` (see Config / env changes) which the root compose file doesn't currently pass through either.
 - **Invariant: the server-side env var is the sole authority.** The cookie and header are not secrets and are trivially forgeable by anyone (setting `e2e_bypass=1` on yourself in prod is one devtools call away) — they carry zero trust on their own. The guard only inspects them at all when `process.env.E2E_AUTH_BYPASS === '1'` on that specific server process, which is not client-supplied data; a browser has no path to influence it. Where that env var is unset (prod, by design), the cookie/header branch is dead code at runtime, not merely "checked and denied." The one real residual risk is therefore operational — `E2E_AUTH_BYPASS` ending up set on the prod box's `.env` by mistake — not anything a client can do from the browser. `DAMN-30` tracks a hard `deploy.sh` guard against exactly that (hostname-based allow-list, logged on that issue).
 
 ## Config / env changes
 
 - `apps/api/src/config/env.ts`: add `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` (both required — fail loud on boot if missing), `E2E_AUTH_BYPASS` (optional, defaults falsy).
 - `apps/web`: `VITE_WORKOS_CLIENT_ID`, `VITE_WORKOS_REDIRECT_URI` — build-time is fine for these (they're not secrets and don't vary staging/prod in a way that breaks image promotion the way the E2E flag would; if that turns out wrong once redirect URIs are nailed down per-environment, revisit before merge).
+- **Root `docker-compose.yml` (the local/dev stack, distinct from `deploy/compose.yaml`) needs the same `WORKOS_API_KEY`/`WORKOS_CLIENT_ID`/`E2E_AUTH_BYPASS` wiring into its `api` service.** Easy to miss because the design's other env-var bullets all talk about `deploy/compose.yaml` — this is the one that backs local `docker compose up` and `pnpm e2e`'s local mode, so it needs its own pass, not an assumption that the deploy-side change covers it.
 - `.env.example`, `deploy/.env.example`: document the new vars (WorkOS Staging keys for local dev + staging; Production keys only ever touch the prod box, out of scope until DAMN-30).
 - `AuthKitProvider` mounted in `apps/web/src/main.tsx` (or a new `AuthProvider` wrapper), `clientId` + `redirectUri` from the Vite env vars.
 - `/login` route: WorkOS's dashboard requires a registered Sign-in URL that calls `signIn()` (used for admin-impersonation / shared links, not our primary flow, but AuthKit expects it to exist). Add a trivial route that does nothing but call `signIn()` on mount.
@@ -88,9 +94,10 @@ Implements the contract already stubbed in `e2e/support/auth.ts`, resolving both
 
 Documented as its own doc (`docs/features/DAMN-1-auth-accounts/workos-setup.md`) rather than buried in this file, since it's a checklist, not a design artifact:
 
+0. **Pre-flight, before any implementation code is written:** on Staging, enable Magic Auth, toggle "Sign up" OFF, send yourself one invite, and confirm you can complete an OTP sign-in through it end to end. This combination is load-bearing for the entire chosen approach — if an invited user can't complete Magic Auth with public sign-up off, the invite-only mechanism needs rethinking, not a config tweak. Cheap to check now (~10 min); expensive to discover after the guard/provisioning code is built on top of the assumption.
 1. Confirm Staging + Production environments exist (both do — not yet configured).
 2. Both environments: enable email OTP ("Magic Auth") as the sign-in method.
-3. Both environments: **toggle "Sign up" OFF** (Authentication settings) — confirm this doesn't interfere with the Magic Auth flow specifically (flagged as unverified from docs alone in the scope discussion; check live before relying on it).
+3. Both environments: **toggle "Sign up" OFF** (Authentication settings) — already verified live in step 0 above for Staging; repeat the same check for Production before it goes live (DAMN-30).
 4. Both environments: register the redirect URI (`http://localhost:5173/callback` for local dev; staging's tailnet hostname `/callback` for staging) and the `/login` Sign-in URL.
 5. Send yourself (and any V1 testers) an invite via the dashboard Invites tab.
 6. Branding pass (logo/colors/light-dark) — cosmetic, do whenever.
@@ -99,7 +106,7 @@ Documented as its own doc (`docs/features/DAMN-1-auth-accounts/workos-setup.md`)
 ## Test plan
 
 - **Unit:** `WorkosTokenVerifier` claim/expiry/JWKS-failure branches (mocked JWKS), `UsersService.findOrProvision` upsert-on-conflict logic (mocked db), guard's error-mapping branches.
-- **Component (Testcontainers Postgres):** `JwtAuthGuard` + `UsersService` against a real Postgres — the concurrent-first-request race (two parallel provisioning calls for the same new `sub` produce one row), `GET /api/me` round trip, `@Public()` bypass for `/api/health`. WorkOS itself stays mocked (stub `TokenVerifier`).
+- **Component (Testcontainers Postgres):** `JwtAuthGuard` + `UsersService` against a real Postgres — the concurrent-first-request race (two parallel provisioning calls for the same new `sub` produce one row, using the stub `WorkosUserLookup`), `GET /api/me` round trip, `@Public()` bypass for `/api/health`. WorkOS itself stays mocked (stub `TokenVerifier` + stub `WorkosUserLookup`).
 - **Workflow (Playwright):** replaces the DAMN-26 skeleton assertions — `loginAsTestUser` bypass gets past the auth wall, `GET /api/me` returns the fixed e2e user, sign-out (if reachable without real WorkOS — otherwise assert the sign-out button exists and calls the SDK method, without asserting the full round trip through a real WorkOS session).
 
 ## Open decisions from phase 1 — resolved here
