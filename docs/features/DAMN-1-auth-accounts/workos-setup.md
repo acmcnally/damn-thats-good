@@ -9,7 +9,7 @@ Owner-executed checklist against the existing WorkOS account. Not app code; noth
 - [ ] **Staging: register BOTH as redirect URIs** (same environment, same list — local dev and deployed staging share Staging's WorkOS keys per ADR-0010; each instance requests whichever matches its own origin at runtime, nothing to choose between manually):
   - `http://localhost:5173/callback`
   - `https://<staging-tailnet-hostname>/callback`
-  - Also register the `/login` Sign-in URL for both origins if that field accepts more than one value (check live) — otherwise prioritize the staging URL.
+- [ ] **Staging: set the Initiate Login URI to `https://<staging-tailnet-hostname>/login`.** Single-value field (confirmed live, unlike redirect URIs) — used for WorkOS-*initiated* flows (admin impersonation, shared links), not the everyday OTP path. Staging is the only meaningful target; local dev has no real use case here (nothing else can reach `localhost:5173`).
 - [ ] Send an invite (dashboard → Users → Invites) for yourself and any V1 testers.
 - [ ] Branding pass — logo, colors, light/dark, corner radius. Cosmetic, no rush.
 - [ ] Copy the **Staging** API key + Client ID into local `.env` (git-ignored) and staging's `deploy/.env` on the box (`chmod 600`), and into the password manager per ADR-0010.
