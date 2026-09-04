@@ -11,5 +11,8 @@ Owner-executed checklist against the existing WorkOS account. Not app code; noth
 - [ ] Send an invite (dashboard → Users → Invites) for yourself and any V1 testers. *(Not blocking implementation — the pre-flight invite already proved the mechanism works.)*
 - [ ] Branding pass — logo, colors, light/dark, corner radius. Cosmetic, no rush.
 - [x] Copy the **Staging** API key + Client ID into local `.env` — confirmed present, 2026-09-04.
-- [ ] Copy the same into staging's `deploy/.env` on the box (`chmod 600`) — **please confirm this one specifically**, since it's on a different machine I can't check myself.
+- [x] Copy the same into staging's `deploy/.env` on the box (`chmod 600`). Confirmed 2026-09-04.
+- [x] Both environments: disable every sign-in method except Magic Auth (Google/SSO buttons observed during pre-flight testing, otherwise unused and undesired for V1). Confirmed 2026-09-04.
 - [ ] Production keys: **not needed until DAMN-30** — don't configure the prod `.env` yet.
+
+WorkOS dashboard setup complete as of 2026-09-04 — everything needed to start implementation is in place.
