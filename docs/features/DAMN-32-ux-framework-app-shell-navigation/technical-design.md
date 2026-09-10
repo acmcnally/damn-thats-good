@@ -22,7 +22,8 @@ Settled direction:
 
 | Aspect | Decision |
 |---|---|
-| Type | **Nunito**, one family, everything. Headings 700–800, body 400–600. No serif. |
+| Type | **Rubik**, one family, everything. No serif. Chosen over Nunito/Figtree after a specimen comparison (`mockups/typography-*.html`): more composed at headings, more compact in the nav. |
+| Type scale (locked) | Reading text (method, ingredients) 15px/400 · nav & buttons 14px/500 · metadata & captions 13px/500 · badges, all-caps eyebrows, counters **12px/600** · **hard floor 12px, nothing smaller**. All-caps gets +0.04em tracking. Rationale: Rubik closes its apertures and thickens up below ~12px on low-DPI panels — the 12px floor + easing badge weight from 700→600 keeps small chrome legible; density cost is nil for this app's screens. Mockups predate this scale and only approximate it — **this table is authoritative**. |
 | Shape | Pill buttons (`--radius-full`), generously rounded cards (`--radius-lg` 18px). |
 | Warmth | Comes from color + rounded shapes, not a characterful typeface. |
 | Palettes | **Terracotta** (default), **Sage**, **Plum** — pure color-token swap, identical type + components, each with a light and dark variant. |
@@ -47,7 +48,7 @@ Settled direction:
 | Package | Why | Notes |
 |---|---|---|
 | `react-router` (v7.x, exact-pinned) | Client-side routing | v7 is the current line; `createBrowserRouter` + `<RouterProvider>` API (see Routing). One dep — `react-router-dom` merged into `react-router` in v7. |
-| `@fontsource-variable/nunito` (or `@fontsource/nunito` weights 400/600/700/800) | Self-hosted Nunito | Bundled, no runtime request to Google Fonts — fits ADR-0004's "no avoidable external runtime deps" and keeps the self-hosted app private. Imported once in `styles/base.css`. |
+| `@fontsource-variable/rubik` (or `@fontsource/rubik` weights 400/500/600/700) | Self-hosted Rubik | Bundled, no runtime request to Google Fonts — fits ADR-0004's "no avoidable external runtime deps" and keeps the self-hosted app private. Imported once in `styles/base.css`. Latin subset only. |
 
 No other additions. Icons are hand-inlined SVG (a small `components/icons.tsx` set) — no icon library.
 
@@ -92,7 +93,7 @@ This issue sets the pattern for the whole frontend, so it's called out explicitl
 
 ### Token layer (`apps/web/src/styles/tokens.css`)
 
-- **Structural tokens on `:root`** (palette-neutral): `--font-sans`, the type scale (`--text-xs … --text-3xl`), weights, line-heights, spacing (`--space-1 … --space-8`, 8pt), radii (`--radius-sm/md/lg/full`), elevation (`--shadow-1/2`), motion (`--dur-*`, easing).
+- **Structural tokens on `:root`** (palette-neutral): `--font-sans` (`'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`), the type scale per the locked table above (`--text-xs` = 12px is the floor), weights (`--weight-regular 400 / -medium 500 / -semibold 600 / -bold 700`), line-heights, spacing (`--space-1 … --space-8`, 8pt), radii (`--radius-sm/md/lg/full`), elevation (`--shadow-1/2`), motion (`--dur-*`, easing).
 - **Color tokens scoped by palette + mode**: `[data-palette="terracotta"] { … light values … }` and `[data-palette="terracotta"][data-theme="dark"] { … dark overrides … }`, ×3 palettes. Semantic names only — `--color-bg-primary`, `--color-text-primary/secondary/tertiary`, `--color-border`/`-strong`, `--color-brand` (fixed per palette across modes), `--color-accent`/`-hover`/`-muted`, `--color-text-on-accent`, `--color-focus`, `--color-danger`. Concrete hex values + WCAG-AA contrast results are in `mockups/palette-typography.html` (all pairs pass AA; `--color-brand` is checked at the 3:1 large-text/graphic threshold since it's the wordmark).
 - No `packages/` promotion — these are web-presentation-only. DAMN-14 promotes `ColorMode`/`Palette` *type* names to `@dtg/shared` if/when the profile DTO needs them.
 
