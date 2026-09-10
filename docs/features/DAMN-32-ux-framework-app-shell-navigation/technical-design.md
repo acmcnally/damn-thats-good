@@ -29,8 +29,8 @@ Settled direction:
 | Palettes | **Terracotta** (default), **Sage**, **Plum** — pure color-token swap, identical type + components, each with a light and dark variant. |
 | Layout | Nav rail **left** (232px), top bar over the content column, gear + avatar **top-right**. |
 | Splash | Centered wordmark only (no top-left mark, no tagline); "Log in" top-right. |
-| Settings menu | Gear icon left of the avatar → click-to-open popover; `Light — ⬤ — Dark` switch (toggle centered between the two labels, labels also clickable) + a Terracotta/Sage/Plum `<select>`; dismissed by outside click only; every change repaints live. |
-| Search | On `/` before the first navigation of the session: centered in the main pane. After navigating anywhere: in the top bar for the rest of the session. Inert either way (DAMN-6 owns behaviour). |
+| Settings menu | Gear icon left of the avatar → click-to-open popover; `Light — ⬤ — Dark` switch (toggle centered between the two labels, labels also clickable) + a Terracotta/Sage/Plum `<select>`; **dismissed by an outside click _or_ `Escape`** (the standard menu-button pattern — all three popovers behave this way, see `PopoverGroup`); every change repaints live. |
+| Search | Placement is a pure function of the route: **on `/` → centered hero in the main pane; on every other route → in the top bar.** No session state (`hasNavigated` was considered and dropped — owner chose "hero returns whenever you're on `/`" 2026-09-10). Inert either way (DAMN-6 owns behaviour). *Note: V1 has no in-app control that navigates back to `/` once you leave it, so in practice the hero only shows on first entry — but the rule is route-derived, so it Just Works if a home affordance is ever added (e.g. a wordmark link at the top of the nav rail).* |
 
 ## Open decisions from phase 1 — resolved
 
@@ -71,16 +71,16 @@ This issue sets the pattern for the whole frontend. Owner-approved 2026-09-10.
 
 `react-router` v8 (Data Mode): `createBrowserRouter` + `<RouterProvider>`, route config as data — not JSX `<Routes>`, and not v8's file-based Framework Mode. Clean config/render separation, and the forward-looking API for when DAMN-2+ wants loaders.
 
-**Import paths (v8-specific, verified against 8.3.1):** `createBrowserRouter`, `createMemoryRouter`, `Outlet`, `Navigate`, `NavLink`, `useLocation` etc. all come from `react-router`. `RouterProvider` is imported from **`react-router/dom`** specifically — v8 ships two `RouterProvider` implementations, and the `/dom` one is the DOM/hydration-aware variant a browser SPA needs (the `react-router` one is the generic/RSC variant). This is deliberate, not incidental.
+**Import paths (v8-specific, verified against 8.3.1):** `createBrowserRouter`, `createMemoryRouter`, `Outlet`, `Navigate`, `NavLink`, `useLocation` etc. all come from `react-router`. `RouterProvider` is imported from **`react-router/dom`** specifically — v8 ships two `RouterProvider` implementations, and the `/dom` one is the `flushSync`-wired DOM variant a browser SPA (and a jsdom test) needs. This is deliberate; use the same `/dom` import in tests.
 
 ### Structure — nested layout routes (not per-route wrappers)
 
-`AppShell` must be **persistent** across every authed screen (the issue's premise), so it is a *layout route* with an `<Outlet/>`, not a wrapper repeated per page. Repeating `<AuthGate><AppShell>…` per route would remount the shell on every navigation → nav-rail flicker, lost scroll, and `hasNavigated` (see Search placement) reset on every click.
+`AppShell` must be **persistent** across every authed screen (the issue's premise), so it is a *layout route* with an `<Outlet/>`, not a wrapper repeated per page. Repeating `<AuthGate><AppShell>…` per route would remount the shell on every navigation → nav-rail flicker, lost scroll position, popover state torn down mid-interaction.
 
 ```
 <AuthGate>                       layout route — auth gate, renders <Outlet/> when authed
   <AppShell>                     layout route — grid frame (top bar + nav rail + <Outlet/>)
-    index            → <Home>              (centered search until first navigation)
+    index            → <Home>              (centered hero wordmark + search — only mounts at `/`)
     "recipes"        → <RecipesPage>       (placeholder)
     "shopping-lists" → <ShoppingListsPage> ("Coming soon")
     "data"           → <DataPage>          (reference-data placeholder + disabled export)
@@ -167,21 +167,21 @@ Menu/popover open uses a ≤150ms scale+fade (`--dur-quick` ceiling per ADR-0012
 | `routes/AuthCallback.tsx` | `/callback`: bypass → redirect to `/`; else an inert full-screen spinner that never navigates (see Routing). |
 | `routes/Splash.tsx` | Unauthenticated landing — centered wordmark, "Log in" (→ `signIn()`). |
 | `auth/LoginRedirect.tsx` | `/login`: bypass → redirect to `/`; else `signIn()` on mount (DAMN-1's `SignInRedirect`, unchanged). |
-| `shell/AppShell.tsx` | Grid frame: `<TopBar>` + `<NavRail>` + `<Outlet/>`. Holds a `hasNavigatedRef` (set true the first time `useLocation().pathname` becomes `!== '/'`); search placement is **derived**, not a pure latch: `pathname !== '/' || hasNavigatedRef.current` → top-bar, else hero (review finding #4 — a pure event latch leaves *no* search control on a deep-link/reload to `/recipes`). |
-| `shell/PopoverGroup.tsx` + `usePopoverGroup()` | A context/registry so "one popover open at a time" actually works — three independent `usePopover()` instances can't coordinate. The group tracks the open id; opening one closes the others. Each menu still owns its own outside-click / `Escape` / focus-return. |
+| `shell/AppShell.tsx` | Grid frame: wraps everything in `<PopoverGroup>` (so `TopBar`'s gear/avatar menus and `NavRail`'s create menu share one registry), then `<TopBar>` + `<NavRail>` + `<Outlet/>`. **No session state** — search placement is a pure function of `useLocation().pathname === '/'`, computed independently by `TopBar` (shows its search only when `pathname !== '/'`) and by `Home` (renders the hero only at `/`). Since `Home` only mounts at `/` and `TopBar`'s search only shows off `/`, exactly one search control renders — no shared context needed. Deep-link / reload to `/recipes` → `pathname !== '/'` → top-bar search. (Supersedes review-1 finding #4's `hasNavigated` latch — the route-derived rule the owner chose makes the latch unnecessary.) |
+| `shell/PopoverGroup.tsx` + `usePopoverGroup()` | Context/registry so "one popover open at a time" works — three independent `usePopover()` instances can't coordinate. **Provider mounts in `AppShell`**, wrapping both `TopBar` and `NavRail`. The group tracks the open id; opening one closes the others; `Escape` or an outside click closes the open one. Each menu still owns its own focus-return. |
 | `shell/TopBar.tsx` | Search slot (placement-aware) + gear + avatar. |
 | `shell/NavRail.tsx` | Create button + menu (Recipe / Shopping list — inert), nav items (Recipes, Shopping Lists, divider, Data), active-route highlight via `NavLink`. |
 | `shell/SearchControl.tsx` | Inert search input; `variant="hero" | "bar"`. |
-| `appearance/SettingsMenu.tsx` | Gear popover — Light/Dark switch + palette `<select>`. |
+| `appearance/SettingsMenu.tsx` | Gear popover — Light/Dark switch + palette `<select>`. Registers with `PopoverGroup`; outside-click / `Escape` dismiss. |
 | `shell/AvatarMenu.tsx` | Profile (→ `/profile`) / Sign out (→ `signOut()`). Identity line from `GET /api/me`: default avatar renders immediately and always; the email/name line shows a skeleton while pending and **stays silent on error** (no error UI in a menu — the avatar + Profile/Sign out still work). |
-| `routes/Home.tsx` | Authed home — renders the hero search only when `AppShell` says placement is `hero`; otherwise minimal. |
+| `routes/Home.tsx` | Authed home (the `/` index route) — renders the centered hero wordmark + search. Only ever mounts at `/`, so it renders the hero unconditionally. |
 | `routes/RecipesPage.tsx` `ShoppingListsPage.tsx` `DataPage.tsx` `ProfilePage.tsx` | Placeholder pages per the mockup. |
 | `appearance/{types,resolve,AppearanceProvider}.ts(x)` | Theming (above). |
 | `components/DefaultAvatar.tsx` | Inline SVG person mark, `currentColor`. Static, until DAMN-24. |
 | `components/icons.tsx` | Inlined SVG set (gear, search, book, cart, database, arrow, sign-out, user). |
 | `styles/tokens.css` `styles/base.css` | Global stylesheets (reset, `@font-face` via `@fontsource`, tokens). |
 
-**Moved/deleted:** `Landing.tsx`, `Landing.component.test.tsx` deleted (absorbed into `Home` + shell). `App.tsx` → `auth/AuthGate.tsx` + `auth/LoginRedirect.tsx`. `e2eBypass.ts` → `auth/bypass.ts` (same `hasE2eBypassCookie`, plus `<BypassRedirect/>`). `apiClient.ts` unchanged. `App.component.test.tsx`'s five cases migrate into `auth/AuthGate.component.test.tsx` using `createMemoryRouter(routes, …)`.
+**Moved/deleted:** `Landing.tsx`, `Landing.component.test.tsx` deleted (absorbed into `Home` + shell). `App.tsx` → `auth/AuthGate.tsx` + `auth/LoginRedirect.tsx`. `e2eBypass.ts` → `auth/bypass.ts` (same `hasE2eBypassCookie`, plus `<BypassRedirect/>`). `App.component.test.tsx`'s five cases migrate into `auth/AuthGate.component.test.tsx` using `createMemoryRouter(routes, …)` — tests use the same `react-router/dom` `<RouterProvider>` (jsdom is a DOM env). **`apiClient.ts` unchanged:** its 401 handler stays `window.location.assign('/login')` — a full document reload. It's a plain module with no router handle, and a hard reload is a clean slate for re-auth; `LoginRedirect` handles the bypass case on the reload. `router.navigate('/login')` would be the SPA-idiomatic alternative if `apiClient` is ever refactored to take a navigate fn.
 
 ## Data model
 
@@ -213,7 +213,7 @@ Menu/popover open uses a ≤150ms scale+fade (`--dur-quick` ceiling per ADR-0012
 - **`/callback`** — `initialEntries: ['/callback?code=x']` renders the spinner, does **not** render Splash, does **not** navigate away on its own (review finding #1). With the bypass cookie → redirects to `/`.
 - **Routing:** clicking each nav item renders the matching placeholder page and updates the URL; `ShoppingListsPage` shows "Coming soon"; `DataPage` shows the disabled export control; unknown path → redirect to `/`.
 - **Shell persistence:** navigating Recipes → Data → Profile keeps one `AppShell` mounted (the nav rail node identity is stable / a `useEffect` mount-counter on `AppShell` fires once).
-- **Search placement (review finding #4):** hero on `/` with no prior navigation; top-bar after navigating away and back to `/`; **top-bar on a direct mount at `/recipes`** (deep-link); **still correct after a simulated reload** (fresh mount) at `/recipes`. There must always be exactly one search control.
+- **Search placement (route-derived):** hero at `/`, top-bar at `/recipes` (fresh mount — covers both deep-link and reload; jsdom + `createMemoryRouter` can't distinguish them and don't need to); after navigating `/` → `/recipes` → `/`, the hero is back (owner's "hero returns on `/`" rule). Exactly one search control in every case.
 - **Avatar menu:** opens on click; "Profile" navigates to `/profile`; "Sign out" calls the injected `signOut`; identity line shows a skeleton while `GET /api/me` is pending and renders nothing (no error UI) on a 500.
 - **Settings menu:** opens on gear click; toggling dark / changing palette does **not** close it; outside click closes it; `Escape` closes it. Opening the avatar menu closes the settings popover and vice-versa (the `PopoverGroup` registry). Toggling dark sets `document.documentElement.dataset.theme`; palette sets `dataset.palette`; both write `localStorage['dtg.appearance']` (with `updatedAt`).
 - **Appearance provider:** mounts from a seeded `localStorage` value and applies both attributes to `<html>`; `prefers-color-scheme` drives the default when `mode` is `null` (mocked `matchMedia`); `remoteValue` prop, when newer, wins over the local copy.
@@ -237,21 +237,34 @@ Extend the smoke spec (or add `shell.spec.ts`), reusing `loginAsTestUser`:
 - `prefers-reduced-motion` honoured for the popover animation.
 - Hit targets ≥44px (buttons, nav items, switch).
 
-## Adversarial design review (2026-09-10) — resolved
+## Adversarial design review — resolved
 
-A fresh-context review against the frozen scope, the mockups, this doc, DAMN-1's design, and the ADRs. Twelve findings; all folded into this doc, none changed scope. Discussed with the owner, who approved the revisions wholesale.
+### Review 1 (2026-09-10) — full doc
 
-**Blocking (design bugs, now fixed above):**
+Fresh-context review against the frozen scope, the mockups, this doc, DAMN-1's design, and the ADRs. Twelve findings; all folded in, none changed scope.
+
+**Blocking (design bugs, fixed above):**
 1. `/callback` would race AuthKit's code exchange under a data router → explicit inert `/callback` route + `onRedirectCallback` → `router.navigate` (see Routing).
-2. `AppShell` must be a nested *layout* route, not a per-route wrapper, or it remounts every navigation (flicker, lost scroll, `hasNavigated` reset) → route structure made explicit.
+2. `AppShell` must be a nested *layout* route, not a per-route wrapper, or it remounts every navigation (flicker, lost scroll) → route structure made explicit.
 3. The E2E bypass short-circuit must cover `/login` and `/callback`, now outside `AuthGate` → shared `auth/bypass.ts` guard on all three entry points; server env var stays sole authority.
-4. The `hasNavigated` pure-latch leaves *no* search control on a deep-link/reload to a sub-route → placement derived from `pathname !== '/' || hasNavigatedRef` + explicit tests.
+4. A pure-latch `hasNavigated` leaves *no* search control on a deep-link/reload to a sub-route → placement made route-derived (further simplified in review 2, below).
 5. The e2e sign-out→Splash assertion fails deterministically under the bypass cookie (and fires a live WorkOS logout) → moved to the component tier; e2e only checks the button exists.
 
 **Should-fix (addressed above):**
 6. Token selector must be `:root[data-palette=…]` (attributes land on `<html>`), not the mockup's `.app[data-palette=…]` → called out in Design tokens + an e2e computed-style guard.
 7. Stored appearance shape gains `updatedAt` now (can't migrate later) + `AppearanceProvider` gains `remoteValue`/`onLocalChange` injection points for DAMN-14.
-8. Unspecified states pinned down: `GET /api/me` pending (skeleton) / error (silent) in the avatar menu; "one popover at a time" via a `PopoverGroup` registry, not three isolated hooks.
-9. Frozen issue said "Nunito throughout" — the ux-pass switched to Rubik with owner sign-off; issue text updated to match.
+8. Unspecified states pinned down: `GET /api/me` pending (skeleton) / error (silent) in the avatar menu; "one popover at a time" via a `PopoverGroup` registry.
+9. Frozen issue said "Nunito throughout" — the ux-pass switched to Rubik with owner sign-off; issue text updated.
 
-**Minor (noted, mostly deferred):** inline-script CSP hash (DAMN-30); `matchMedia` mock in `vitest.setup.ts` (added to test plan); `mode: null` one-way door (accepted); deep-link destination lost post-auth (accepted); `react-router` `^8` (current stable; owner-checked 2026-09-10) not an exact pin; `*` route sits outside `AuthGate` (a logged-out unknown path → Splash).
+**Minor:** inline-script CSP hash (DAMN-30); `matchMedia` mock in `vitest.setup.ts`; `mode: null` one-way door (accepted); deep-link destination lost post-auth (accepted); `react-router` `^8` (current stable, owner-checked); `*` route outside `AuthGate`.
+
+### Review 2 (2026-09-10) — scoped: the rewritten routing/auth section + react-router v8
+
+The routing/auth section was substantially rewritten in response to review 1; review 2 re-checked *just that* + v8 correctness. **No blocking issues** — v8 Data-Mode usage verified correct (route array feeds `createBrowserRouter` and `createMemoryRouter` unmassaged; `RouterProvider` from `react-router/dom` confirmed; the three-point bypass guard is complete; `/callback` race genuinely closed). Folded in:
+
+- **Escape-to-close contradiction** — the UX table said settings menu dismisses "by outside click only", the a11y + test sections said `Escape` too. Escape is required for the menu-button pattern → kept, specified once on `PopoverGroup`, table row fixed.
+- **`AppShell` → `Home` search plumbing was unstated.** Resolved by the owner's "hero returns on `/`" choice: placement is now pure `pathname === '/'`, computed independently by `TopBar` and `Home` — `hasNavigated`/`hasNavigatedRef` deleted entirely. Also settles review-1 #4 and the "impure ref set during render" nit.
+- **`PopoverGroup` provider mount point** — now stated: in `AppShell`, wrapping `TopBar` + `NavRail`.
+- Minor: collapsed a redundant test bullet (deep-link vs reload at `/recipes` are one test in jsdom); test-side `RouterProvider` is the `react-router/dom` one; `apiClient.ts`'s `window.location.assign('/login')` documented as a deliberate full-reload.
+
+**Owner UX decision (2026-09-10):** returning to `/` after navigating restores the centered hero search (not "stays in the top bar"). Note: V1 has no in-app path back to `/`, so this only bites if a home affordance is added later — the route-derived rule handles it for free.
