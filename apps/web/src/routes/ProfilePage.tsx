@@ -1,15 +1,13 @@
 /**
  * Profile — DAMN-32 placeholder. The real view/edit page and avatar handling are
- * DAMN-14. The identity line reuses `GET /api/me` (DAMN-1).
+ * DAMN-14. The identity line reuses the shared `GET /api/me` (DAMN-1) fetch.
  */
 
-import { useShellContext } from '../shell/shellContext';
-import { useMe } from '../shell/useMe';
+import { useMe } from '../shell/MeProvider';
 import styles from './pages.module.css';
 
 export function ProfilePage() {
-  const { getAccessToken } = useShellContext();
-  const me = useMe(getAccessToken);
+  const me = useMe();
 
   return (
     <div className={styles.page}>

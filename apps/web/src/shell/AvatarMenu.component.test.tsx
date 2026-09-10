@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -32,7 +32,7 @@ const okMe = () =>
   http.get('/api/me', () => HttpResponse.json({ id: 'u1', email: 'andrew@example.com' }));
 
 const avatarButton = () => screen.getByRole('button', { name: /account/i });
-const avatarMenu = () => screen.queryByRole('menu', { name: /account/i });
+const avatarMenu = () => screen.queryByRole('group', { name: /account/i });
 
 describe('<AvatarMenu>', () => {
   it('opens on click and shows the Sign out action', async () => {
@@ -43,7 +43,7 @@ describe('<AvatarMenu>', () => {
     expect(avatarMenu()).not.toBeInTheDocument();
     fireEvent.click(avatarButton());
     expect(avatarMenu()).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 
   it('shows a skeleton while GET /api/me is pending, then the email', async () => {
@@ -68,7 +68,7 @@ describe('<AvatarMenu>', () => {
     fireEvent.click(avatarButton());
 
     // menu still works; no alert / error text
-    expect(screen.getByRole('menuitem', { name: /profile/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /profile/i })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByText(/error|couldn.t/i)).not.toBeInTheDocument();
@@ -80,10 +80,30 @@ describe('<AvatarMenu>', () => {
     const { router } = renderRoute({ initialEntries: ['/'] });
     await screen.findByRole('navigation', { name: /primary/i });
     fireEvent.click(avatarButton());
-    fireEvent.click(screen.getByRole('menuitem', { name: /profile/i }));
+    fireEvent.click(screen.getByRole('button', { name: /profile/i }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/profile'));
     expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument();
+  });
+
+  it('fetches GET /api/me once for the whole session (avatar menu + Profile share it)', async () => {
+    let calls = 0;
+    server.use(
+      http.get('/api/me', () => {
+        calls += 1;
+        return HttpResponse.json({ id: 'u1', email: 'andrew@example.com' });
+      }),
+    );
+    const { router } = renderRoute({ initialEntries: ['/'] });
+    await screen.findByRole('navigation', { name: /primary/i });
+    await waitFor(() => expect(calls).toBe(1));
+
+    await act(async () => {
+      await router.navigate('/profile');
+    });
+    await screen.findByRole('heading', { name: 'Profile' });
+    expect(screen.getByText(/signed in as andrew@example\.com/i)).toBeInTheDocument();
+    expect(calls).toBe(1);
   });
 
   it('"Sign out" calls the injected signOut', async () => {
@@ -91,9 +111,21 @@ describe('<AvatarMenu>', () => {
     renderRoute({ initialEntries: ['/'] });
     await screen.findByRole('navigation', { name: /primary/i });
     fireEvent.click(avatarButton());
-    fireEvent.click(screen.getByRole('menuitem', { name: /sign out/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
 
     expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  it('returns focus to the avatar button when a menu item closes the menu', async () => {
+    server.use(okMe());
+    renderRoute({ initialEntries: ['/'] });
+    await screen.findByRole('navigation', { name: /primary/i });
+
+    fireEvent.click(avatarButton());
+    fireEvent.click(screen.getByRole('button', { name: /profile/i }));
+
+    expect(avatarMenu()).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(avatarButton());
   });
 
   it('opening the avatar menu closes the settings popover and vice versa', async () => {
@@ -102,14 +134,14 @@ describe('<AvatarMenu>', () => {
     await screen.findByRole('navigation', { name: /primary/i });
 
     fireEvent.click(screen.getByRole('button', { name: /settings/i }));
-    expect(screen.queryByRole('dialog', { name: /appearance/i })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /appearance/i })).toBeInTheDocument();
 
     fireEvent.click(avatarButton());
-    expect(screen.queryByRole('dialog', { name: /appearance/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /appearance/i })).not.toBeInTheDocument();
     expect(avatarMenu()).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /settings/i }));
     expect(avatarMenu()).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: /appearance/i })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /appearance/i })).toBeInTheDocument();
   });
 });

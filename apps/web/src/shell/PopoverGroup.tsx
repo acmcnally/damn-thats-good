@@ -57,9 +57,15 @@ export function usePopover(id: string): UsePopover {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
+  // `close()` is the programmatic path (Escape, a menu-item click) — return
+  // focus to the trigger so keyboard users don't get dropped onto <body>. The
+  // outside-click path deliberately does not refocus (the user clicked
+  // elsewhere).
   const close = useCallback(() => {
-    setOpenId((cur) => (cur === id ? null : cur));
-  }, [id, setOpenId]);
+    if (!isOpen) return;
+    setOpenId(null);
+    triggerRef.current?.focus();
+  }, [isOpen, setOpenId]);
 
   const toggle = useCallback(() => {
     setOpenId((cur) => (cur === id ? null : id));

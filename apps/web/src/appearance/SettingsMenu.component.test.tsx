@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PopoverGroup } from '../shell/PopoverGroup';
 import { AppearanceProvider } from './AppearanceProvider';
@@ -16,7 +16,7 @@ function renderMenu() {
 }
 
 const gear = () => screen.getByRole('button', { name: /settings/i });
-const dialog = () => screen.queryByRole('dialog', { name: /appearance/i });
+const panel = () => screen.queryByRole('group', { name: /appearance/i });
 const darkSwitch = () => screen.getByRole('switch', { name: /dark mode/i });
 
 function storedPref() {
@@ -28,15 +28,16 @@ beforeEach(() => {
   localStorage.clear();
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.palette;
+  document.documentElement.classList.remove('theme-transition');
 });
 afterEach(cleanup);
 
 describe('<SettingsMenu>', () => {
   it('opens on gear click and reports aria-expanded', () => {
     renderMenu();
-    expect(dialog()).not.toBeInTheDocument();
+    expect(panel()).not.toBeInTheDocument();
     fireEvent.click(gear());
-    expect(dialog()).toBeInTheDocument();
+    expect(panel()).toBeInTheDocument();
     expect(gear()).toHaveAttribute('aria-expanded', 'true');
   });
 
@@ -45,28 +46,29 @@ describe('<SettingsMenu>', () => {
     fireEvent.click(gear());
 
     fireEvent.click(darkSwitch());
-    expect(dialog()).toBeInTheDocument();
+    expect(panel()).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Theme'), { target: { value: 'sage' } });
-    expect(dialog()).toBeInTheDocument();
+    expect(panel()).toBeInTheDocument();
   });
 
   it('closes on an outside click', () => {
     renderMenu();
     fireEvent.click(gear());
-    expect(dialog()).toBeInTheDocument();
+    expect(panel()).toBeInTheDocument();
 
     fireEvent.mouseDown(document.body);
-    expect(dialog()).not.toBeInTheDocument();
+    expect(panel()).not.toBeInTheDocument();
   });
 
-  it('closes on Escape', () => {
+  it('closes on Escape and returns focus to the gear', () => {
     renderMenu();
     fireEvent.click(gear());
-    expect(dialog()).toBeInTheDocument();
+    expect(panel()).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(dialog()).not.toBeInTheDocument();
+    expect(panel()).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(gear());
   });
 
   it('toggling dark applies data-theme on <html> and persists with updatedAt', () => {
@@ -95,6 +97,21 @@ describe('<SettingsMenu>', () => {
 
     expect(document.documentElement.dataset.palette).toBe('plum');
     expect(storedPref()?.palette).toBe('plum');
+  });
+
+  it('flags the transient theme-transition class on <html> during a change', () => {
+    vi.useFakeTimers();
+    try {
+      renderMenu();
+      fireEvent.click(gear());
+      fireEvent.click(darkSwitch());
+
+      expect(document.documentElement.classList.contains('theme-transition')).toBe(true);
+      vi.advanceTimersByTime(300);
+      expect(document.documentElement.classList.contains('theme-transition')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('the flanking Light / Dark labels set the mode directly', () => {

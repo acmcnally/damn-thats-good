@@ -1,8 +1,11 @@
 /**
  * SettingsMenu — DAMN-32. The gear popover in the top bar: a Light/Dark switch
  * and a palette picker. Every change repaints live (AppearanceProvider). Stays
- * open until an outside click or `Escape` (PopoverGroup). This is the one
- * genuinely functional piece of chrome in the shell.
+ * open until an outside click or `Escape` (PopoverGroup), then focus returns to
+ * the gear. This is the one genuinely functional piece of chrome in the shell.
+ *
+ * A disclosure holding a labelled group of controls — not a modal dialog (no
+ * focus trap / `aria-modal`), so `role="group"`, not `role="dialog"`.
  */
 
 import { GearIcon } from '../components/icons';
@@ -29,7 +32,7 @@ export function SettingsMenu() {
         type="button"
         className={`${styles.gear} ${isOpen ? styles.gearActive : ''}`}
         aria-label="Settings"
-        aria-haspopup="dialog"
+        aria-haspopup="true"
         aria-expanded={isOpen}
         onClick={toggle}
       >
@@ -39,8 +42,8 @@ export function SettingsMenu() {
       <div
         ref={popoverRef}
         className={styles.popover}
-        role="dialog"
-        aria-label="Appearance settings"
+        role="group"
+        aria-label="Appearance"
         hidden={!isOpen}
       >
         <h3 className={styles.heading}>Appearance</h3>

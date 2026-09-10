@@ -26,7 +26,7 @@ test('serves the app, gets past auth, reaches the database, and renders the shel
   // logout) — Splash-on-sign-out is covered in the component tier.
   await page.getByRole('button', { name: 'Account' }).click();
   await expect(page.getByText('e2e@example.test')).toBeVisible();
-  await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Client-side routing: a nav click swaps the page and updates the URL.

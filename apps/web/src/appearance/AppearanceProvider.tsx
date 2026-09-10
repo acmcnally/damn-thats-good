@@ -18,6 +18,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -47,12 +48,14 @@ function systemPrefersDark(): boolean {
 interface AppearanceProviderProps {
   children: ReactNode;
   /**
-   * DAMN-14: a server-synced preference. Read once at mount and, when newer than
-   * the local copy, wins. DAMN-14 will need an effect here if the server value
-   * can arrive asynchronously after mount.
+   * DAMN-14: a server-synced preference. Read once at mount; when newer than the
+   * local copy it wins the initial render. DAMN-14 owns the rest of the
+   * contract — reacting to an async-arriving value, and deciding whether/how a
+   * remote win is written back to localStorage (this component does not persist
+   * it, to avoid restamping the server's `updatedAt`).
    */
   remoteValue?: AppearancePref;
-  /** DAMN-14: called with the full pref (incl. fresh `updatedAt`) after any local edit. */
+  /** DAMN-14: called with the full pref (incl. fresh `updatedAt`) after a real local edit only. */
   onLocalChange?: (pref: AppearancePref) => void;
 }
 
@@ -84,32 +87,43 @@ export function AppearanceProvider({
 
   const effectiveMode = resolveEffectiveMode(pref.mode, prefersDark);
 
-  // Apply to <html>. Mirrors the FOUC script's attribute writes.
+  // Apply to <html>. Mirrors the FOUC script's attribute writes, and toggles a
+  // short-lived `theme-transition` class so the palette/mode swap animates —
+  // base.css scopes the cross-fade to that class so it never lags ordinary
+  // hover / active / focus feedback.
   useEffect(() => {
     const root = document.documentElement;
+    root.classList.add('theme-transition');
+    const timer = window.setTimeout(() => root.classList.remove('theme-transition'), 250);
     root.dataset.palette = pref.palette;
     if (effectiveMode === 'dark') {
       root.dataset.theme = 'dark';
     } else {
       delete root.dataset.theme;
     }
+    return () => {
+      window.clearTimeout(timer);
+      root.classList.remove('theme-transition');
+    };
   }, [pref.palette, effectiveMode]);
 
-  // Persist + notify — but only when `pref` actually diverges from what's
-  // stored. This skips the no-op initial render (and any StrictMode / remount
-  // re-fire) so `updatedAt` is bumped by a real user change, never just by
-  // mounting the app — DAMN-14's merge signal depends on that.
+  // Persist + notify only on a real user edit. A value that arrived via
+  // `remoteValue` or was just read from storage is never echoed back as a local
+  // change — DAMN-14's merge signal depends on that, and it keeps a StrictMode
+  // remount from restamping `updatedAt`.
+  const userEditedRef = useRef(false);
   useEffect(() => {
-    const stored = readStored();
-    if (stored.mode === pref.mode && stored.palette === pref.palette) return;
+    if (!userEditedRef.current) return;
     const written = writeStored(pref);
     onLocalChange?.(written);
   }, [pref, onLocalChange]);
 
   const setMode = useCallback((mode: ColorMode) => {
+    userEditedRef.current = true;
     setPref((p) => ({ ...p, mode }));
   }, []);
   const setPalette = useCallback((palette: Palette) => {
+    userEditedRef.current = true;
     setPref((p) => ({ ...p, palette }));
   }, []);
 

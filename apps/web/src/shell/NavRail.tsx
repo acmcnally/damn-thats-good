@@ -23,7 +23,7 @@ export function NavRail() {
           ref={triggerRef}
           type="button"
           className={styles.create}
-          aria-haspopup="menu"
+          aria-haspopup="true"
           aria-expanded={isOpen}
           onClick={toggle}
         >
@@ -34,15 +34,15 @@ export function NavRail() {
         <div
           ref={popoverRef}
           className={styles.createMenu}
-          role="menu"
+          role="group"
           aria-label="Create"
           hidden={!isOpen}
         >
           {/* Inert — DAMN-2 (recipe entry) and DAMN-11 (shopping lists) wire these. */}
-          <button type="button" role="menuitem" className={styles.createMenuItem} onClick={close}>
+          <button type="button" className={styles.createMenuItem} onClick={close}>
             Recipe
           </button>
-          <button type="button" role="menuitem" className={styles.createMenuItem} onClick={close}>
+          <button type="button" className={styles.createMenuItem} onClick={close}>
             Shopping list
           </button>
         </div>

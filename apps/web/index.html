@@ -19,8 +19,11 @@
       script-src.
     -->
     <script>
+      // Always leave <html> with a valid data-palette, even if anything below
+      // throws — every color token is scoped to :root[data-palette=...].
+      document.documentElement.dataset.palette = 'terracotta';
       try {
-        var p = JSON.parse(localStorage.getItem('dtg.appearance') || '{}');
+        var p = JSON.parse(localStorage.getItem('dtg.appearance') || '{}') || {};
         var pal = ['terracotta', 'sage', 'plum'].indexOf(p.palette) >= 0 ? p.palette : 'terracotta';
         var dark =
           p.mode === 'dark' ||

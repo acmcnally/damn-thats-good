@@ -275,9 +275,28 @@ Deviations from the plan above, all minor:
 
 - **`--font-sans` family name is `'Rubik Variable'`**, not `'Rubik'` — that is the `@font-face` name `@fontsource-variable/rubik` uses. The font is bundled as a single hand-written `@font-face` in `styles/base.css` pointing at the package's `files/rubik-latin-wght-normal.woff2` (latin subset only, ~35 KB); the package ships subset `.woff2` files but no latin-only stylesheet, so importing its `index.css` would have referenced every script's file. `@fontsource-variable/rubik ^5` (5.3.0, checked 2026-09-10).
 - **The Light/Dark switch's flanking labels are `<button>`s**, not `<label>`s — a `<label>` can't associate with a `role="switch"` button the way it does with a form control, and buttons calling `setMode('light'|'dark')` are the cleaner equivalent. The switch itself is `role="switch"` + `aria-checked` as specified.
-- **`AppearanceProvider` persists only when `pref` diverges from the stored value** (compares on each change) rather than using a first-render guard — this also absorbs a StrictMode remount without spuriously bumping `updatedAt`.
+- **`AppearanceProvider` persists + fires `onLocalChange` only on a real user edit** (a `userEditedRef` flipped by `setMode`/`setPalette`), never on the initial read or a `remoteValue` merge or a StrictMode remount — so `updatedAt` is a true edit signal and a server value is never echoed back as a local change. DAMN-14 owns whether/how a remote win is written back to `localStorage`.
 - **`AppShell` forwards the shell context** (`{ signOut, getAccessToken }`) from `AuthGate` down through a second `<Outlet context>` so routed pages (`ProfilePage`) can read it via `useShellContext()`.
 - **`react-router` `8.3.1`** installed (`^8`), peer deps satisfied (react 19.3, node ≥24).
 - Component tests share `src/test/renderRoute.tsx` (builds `createMemoryRouter` over the real route config inside `AppearanceProvider`).
 - Screenshots of the built app (Docker Compose stack, bypass cookie): `mockups/shots/implementation/`.
 - **Responsive:** the shell stacks (top bar → nav → content) below 640px but is tuned for desktop — the mockup was desktop-only and real responsive polish belongs with the feature pages (DAMN-2+).
+
+### Pre-PR diff review (`/code-review high`, 2026-09-10) — 6 findings, all applied
+
+1. **`GET /api/me` fetched twice** (always-mounted `AvatarMenu` + `ProfilePage`) → hoisted to `shell/MeProvider.tsx` mounted in `AppShell`; both consumers read `useMe()` from context. Fetches once on mount, reads `getAccessToken` via a ref so an identity change doesn't refire it.
+2. **FOUC script `catch {}` could leave `<html>` with no `data-palette`** (every color token then undefined) → sets `data-palette="terracotta"` unconditionally before the `try`, and `|| {}` guards a `null` parse.
+3. **Focus only returned to the trigger on Escape** (design doc §a11y) → `PopoverGroup`'s `close()` now refocuses the trigger; the outside-click path deliberately does not.
+4. **A newer `remoteValue` at mount restamped `updatedAt` + echoed via `onLocalChange`** → fixed by the `userEditedRef` gate above.
+5. **`role="menu"`/`"menuitem"`/`"dialog"` promised APG keyboard semantics not implemented** → dropped; popovers are `role="group"` + `aria-label`, triggers keep `aria-haspopup`/`aria-expanded`, Escape/outside-click/focus-return as the design doc's a11y contract specifies. Full APG menu keyboard nav is out of scope for DAMN-32.
+6. **Universal `* { transition: … }` animated every color change** (hover, active pill, focus ring) → scoped to a `.theme-transition` class `AppearanceProvider` puts on `<html>` for ~250ms around a palette/mode swap.
+
+### Pre-merge security review (auth surface, 2026-09-10) — no findings
+
+The diff touches auth only by **re-hosting DAMN-1's already-reviewed gate** across the new route boundaries; no new auth mechanism, endpoint, schema, or env var, and nothing under `apps/api/`.
+
+- **E2E bypass invariant intact** — `hasE2eBypassCookie()` (moved verbatim to `auth/bypass.tsx`) still only skips the *client* redirect-to-AuthKit. Every `/api/*` call still carries the cookie to the server guard, which honours it only when `E2E_AUTH_BYPASS=1` is set on its own process. The cookie alone still grants nothing. The design-review's finding #3 (guard `/login` + `/callback`, now outside `AuthGate`) is implemented on all three entry points.
+- **No unauthenticated recipe surface** — every shell route is nested under `AuthGate`; `/recipes` etc. are placeholders behind the gate. `*` → hardcoded `<Navigate to="/">`, no open redirect.
+- **`onRedirectCallback` `state.returnTo`** (new, in `main.tsx`) is treated as untrusted per the SDK's own guidance: parsed only if a string, resolved against `window.location.origin`, navigation skipped unless `url.origin === window.location.origin`, and the router is handed the parsed path — not the raw value. Currently dead code (DAMN-32 never sets `state`); in place as a safe seam.
+- **Token handling unchanged** — `apiFetch` attaches the bearer token to the `Authorization` header only; `MeProvider`/`ProfilePage` display the caller's own email. 401 still triggers `window.location.assign('/login')`.
+- **`aud` claim still unchecked** — unchanged from DAMN-1's documented V1 decision; not in scope here.
