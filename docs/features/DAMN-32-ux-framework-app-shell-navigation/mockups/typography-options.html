@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-32 — sans-serif options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Figtree:wght@400;500;600;700;800;900&family=Nunito:wght@400;600;700;800;900&family=Quicksand:wght@400;500;600;700&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FBF5EC; --card: #FFFFFF; --tert: #F2E6D3;
+    --text: #2A1D14; --text2: #6E5A47; --text3: #A5927C;
+    --border: #E7DAC6; --accent: #B34A24; --accent-muted: #F1DCC9;
+    --radius: 18px; --pill: 999px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #14100c; font-family: system-ui, sans-serif; }
+  .toc {
+    position: sticky; top: 0; z-index: 5; background: #0d1117; color: #c9d1d9;
+    padding: 12px 24px; display: flex; gap: 18px; align-items: baseline; flex-wrap: wrap;
+    font: 13px/1.4 system-ui, sans-serif; border-bottom: 1px solid #30363d;
+  }
+  .toc strong { color: #fff; }
+  .toc a { color: #8ab4f8; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  section { padding: 40px 24px 8px; max-width: 1400px; margin: 0 auto; }
+  .font-head { color: #fff; margin: 0 0 4px; font: 600 20px/1.3 system-ui, sans-serif; }
+  .font-head span { color: #9aa4b2; font-weight: 400; font-size: 15px; }
+  .font-note { color: #7d8590; font: 13px/1.5 system-ui, sans-serif; margin: 0 0 18px; max-width: 80ch; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+  .specimen {
+    background: var(--bg); color: var(--text); border-radius: var(--radius);
+    padding: 28px 30px; border: 1px solid #2a2018;
+  }
+  .specimen.dark {
+    --bg: #1C1410; --card: #241A14; --tert: #2E2119; --text: #F3E7DA;
+    --text2: #C7B4A0; --text3: #8C7663; --border: #3A2A1E;
+    --accent: #E07A4A; --accent-muted: #3D2418; --on-accent: #1C1410;
+  }
+  .specimen { --on-accent: #FFFFFF; }
+
+  .wordmark { font-weight: 800; font-size: 30px; color: var(--accent); letter-spacing: .005em; }
+  .recipe-title { font-weight: 800; font-size: 26px; margin: 18px 0 4px; line-height: 1.15; }
+  .meta { color: var(--text2); font-size: 13.5px; font-weight: 600; }
+  .section-h { font-weight: 700; font-size: 16px; margin: 22px 0 8px; letter-spacing: .01em; }
+  .ingredients { margin: 0; padding-left: 20px; color: var(--text); font-size: 15px; line-height: 1.75; }
+  .method { color: var(--text); font-size: 15px; line-height: 1.65; margin: 0; max-width: 54ch; }
+  .ui-row { display: flex; align-items: center; gap: 14px; margin-top: 22px; flex-wrap: wrap; }
+  .btn {
+    font-family: inherit; font-weight: 700; font-size: 14px; border: none;
+    background: var(--accent); color: var(--on-accent); border-radius: var(--pill);
+    padding: 11px 20px; cursor: pointer;
+  }
+  .nav-samp { font-weight: 700; font-size: 14px; color: var(--text2); }
+  .tag {
+    font-weight: 700; font-size: 11px; background: var(--accent-muted); color: var(--accent);
+    padding: 4px 11px; border-radius: var(--pill);
+  }
+  .scale { margin-top: 22px; display: flex; flex-direction: column; gap: 2px; }
+  .scale div { line-height: 1.1; }
+  .s1 { font-size: 34px; font-weight: 800; }
+  .s2 { font-size: 22px; font-weight: 700; }
+  .s3 { font-size: 15px; font-weight: 400; }
+  .s4 { font-size: 12.5px; font-weight: 600; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<header class="toc">
+  <strong>Sans-serif options — same content, Terracotta palette</strong>
+  <a href="#nunito">Nunito</a>
+  <a href="#rubik">Rubik</a>
+  <a href="#baloo">Baloo&nbsp;2</a>
+  <a href="#figtree">Figtree</a>
+  <a href="#quicksand">Quicksand</a>
+</header>
+
+<!-- template repeated per font; only font-family + notes differ -->
+<section id="nunito">
+  <h2 class="font-head">Nunito <span>— the current pick</span></h2>
+  <p class="font-note">Rounded humanist. Soft terminals, generous x-height, wide weight range (200–1000). Reads friendly without being childish; long ingredient lists stay easy to scan. This is the reference the others are judged against.</p>
+  <div class="cols" style="font-family:'Nunito',system-ui,sans-serif;">
+    <div class="specimen">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>2 tbsp neutral oil</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>3 cloves garlic, smashed</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, add the garlic for the last minute, then deglaze with the wine.</p>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">weeknight</span>
+      </div>
+    </div>
+    <div class="specimen dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <div class="scale">
+        <div class="s1">Damn That&rsquo;s Good</div>
+        <div class="s2">Braised Short Ribs</div>
+        <div class="s3">Sear, then braise low and slow until the meat gives way.</div>
+        <div class="s4">SERVES 4 · PROVENANCE: NONNA&rsquo;S CARD</div>
+      </div>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">braise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="rubik">
+  <h2 class="font-head">Rubik <span>— lightly rounded, more structured</span></h2>
+  <p class="font-note">Geometric base with softly rounded corners — friendly, but reads a touch more grown-up / editorial than Nunito. Slightly narrower, so lists are more compact. Big weight range (300–900). Good if “warm but composed” beats “cozy.”</p>
+  <div class="cols" style="font-family:'Rubik',system-ui,sans-serif;">
+    <div class="specimen">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>2 tbsp neutral oil</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>3 cloves garlic, smashed</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, add the garlic for the last minute, then deglaze with the wine.</p>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">weeknight</span>
+      </div>
+    </div>
+    <div class="specimen dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <div class="scale">
+        <div class="s1">Damn That&rsquo;s Good</div>
+        <div class="s2">Braised Short Ribs</div>
+        <div class="s3">Sear, then braise low and slow until the meat gives way.</div>
+        <div class="s4">SERVES 4 · PROVENANCE: NONNA&rsquo;S CARD</div>
+      </div>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">braise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="baloo">
+  <h2 class="font-head">Baloo 2 <span>— softest / chunkiest</span></h2>
+  <p class="font-note">Fully rounded, heavier-set. The most overtly “cozy recipe box” of the set — leans warm and casual. Only goes down to 400 (no light weight), and the chunkiness can crowd long lists at body size. Great personality for the wordmark; test whether it tires at paragraph length.</p>
+  <div class="cols" style="font-family:'Baloo 2',system-ui,sans-serif;">
+    <div class="specimen">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>2 tbsp neutral oil</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>3 cloves garlic, smashed</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, add the garlic for the last minute, then deglaze with the wine.</p>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">weeknight</span>
+      </div>
+    </div>
+    <div class="specimen dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <div class="scale">
+        <div class="s1">Damn That&rsquo;s Good</div>
+        <div class="s2">Braised Short Ribs</div>
+        <div class="s3">Sear, then braise low and slow until the meat gives way.</div>
+        <div class="s4">SERVES 4 · PROVENANCE: NONNA&rsquo;S CARD</div>
+      </div>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">braise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="figtree">
+  <h2 class="font-head">Figtree <span>— friendly, a touch more refined</span></h2>
+  <p class="font-note">Geometric humanist built for UI. Friendly proportions and open apertures, but corners are crisp rather than rounded — warmth from shape, not from soft terminals. Excellent at small sizes; the most “app-native” of the set. Weights 300–900.</p>
+  <div class="cols" style="font-family:'Figtree',system-ui,sans-serif;">
+    <div class="specimen">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>2 tbsp neutral oil</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>3 cloves garlic, smashed</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, add the garlic for the last minute, then deglaze with the wine.</p>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">weeknight</span>
+      </div>
+    </div>
+    <div class="specimen dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <div class="scale">
+        <div class="s1">Damn That&rsquo;s Good</div>
+        <div class="s2">Braised Short Ribs</div>
+        <div class="s3">Sear, then braise low and slow until the meat gives way.</div>
+        <div class="s4">SERVES 4 · PROVENANCE: NONNA&rsquo;S CARD</div>
+      </div>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">braise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quicksand">
+  <h2 class="font-head">Quicksand <span>— geometric, airy (likely too light for body)</span></h2>
+  <p class="font-note">Round geometric, very distinctive. Lovely for a wordmark, but the low contrast and light construction make long ingredient lists and method paragraphs harder to scan, and it only goes to 700. Included for completeness — probably a display-only font, not a whole-UI font.</p>
+  <div class="cols" style="font-family:'Quicksand',system-ui,sans-serif;">
+    <div class="specimen">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>2 tbsp neutral oil</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>3 cloves garlic, smashed</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, add the garlic for the last minute, then deglaze with the wine.</p>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">weeknight</span>
+      </div>
+    </div>
+    <div class="specimen dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <div class="scale">
+        <div class="s1">Damn That&rsquo;s Good</div>
+        <div class="s2">Braised Short Ribs</div>
+        <div class="s3">Sear, then braise low and slow until the meat gives way.</div>
+        <div class="s4">SERVES 4 · PROVENANCE: NONNA&rsquo;S CARD</div>
+      </div>
+      <div class="ui-row">
+        <button class="btn">Save recipe</button>
+        <span class="nav-samp">Recipes</span>
+        <span class="tag">braise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div style="height:60px"></div>
+</body>
+</html>
