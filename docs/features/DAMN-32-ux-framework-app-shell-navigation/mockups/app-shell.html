@@ -187,6 +187,10 @@
   .btn-primary { background: var(--color-accent); color: var(--color-text-on-accent); }
   .btn-primary:hover { background: var(--color-accent-hover); }
   .btn-block { width: 100%; }
+  .btn-affix {
+    position: absolute; left: var(--space-4); top: 50%; transform: translateY(-50%);
+    font-weight: var(--weight-heavy); font-size: var(--text-lg); line-height: 1;
+  }
   .nav-item {
     display: flex; align-items: center; gap: var(--space-3);
     padding: 10px var(--space-3); border-radius: var(--radius-md);
@@ -199,6 +203,7 @@
   .nav-item.is-current { background: var(--color-accent-muted); color: var(--color-accent); }
   .nav-divider { height: 1px; background: var(--color-border); margin: var(--space-3) var(--space-2); }
   .nav-create-wrap { position: relative; margin-bottom: var(--space-2); }
+  .nav-create-wrap .btn { position: relative; }
 
   /* ---- main pane ---- */
   .main {
@@ -244,15 +249,21 @@
   }
 
   /* ---- popovers / menus ---- */
+  @keyframes menu-pop {
+    from { opacity: 0; transform: scale(.96) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
   .popover {
     position: absolute; z-index: 30; background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2); padding: var(--space-4); min-width: 260px;
+    transform-origin: top right; animation: menu-pop .13s ease-out;
   }
   .menu {
     position: absolute; z-index: 30; background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border); border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
     box-shadow: var(--shadow-2); padding: var(--space-2); min-width: 180px;
+    transform-origin: top right; animation: menu-pop .13s ease-out;
   }
   .menu button {
     display: flex; width: 100%; align-items: center; gap: var(--space-3);
@@ -267,7 +278,18 @@
 
   .settings-pop { top: 64px; right: calc(var(--space-5) + 48px); }
   .avatar-menu { top: 64px; right: var(--space-5); }
-  .create-menu { top: 52px; left: 0; }
+
+  /* Create menu: overhangs the nav rail into the content pane + a heavier
+     drop shadow so it clearly floats above, not lost inside the rail. */
+  .create-menu {
+    top: 56px; left: 0; width: 248px; transform-origin: top left;
+    box-shadow: 0 16px 40px rgba(0,0,0,.22), 0 4px 12px rgba(0,0,0,.14);
+  }
+  .create-menu button { padding: 12px var(--space-3); font-size: var(--text-base); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .popover, .menu { animation-duration: .01ms; }
+  }
 
   .settings-pop h3 {
     margin: 0 0 var(--space-3); font-size: var(--text-xs); letter-spacing: .06em;
@@ -278,6 +300,13 @@
     padding: var(--space-2) 0;
   }
   .setting-row label { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+  .mode-row { justify-content: center; gap: var(--space-3); padding: var(--space-1) 0 var(--space-3); }
+  .mode-label {
+    font-size: var(--text-sm); font-weight: var(--weight-bold);
+    color: var(--color-text-tertiary); cursor: pointer; user-select: none;
+  }
+  .app:not([data-theme="dark"]) #mode-light,
+  .app[data-theme="dark"] #mode-dark { color: var(--color-text-primary); }
   .switch {
     width: 46px; height: 26px; border-radius: var(--radius-full); border: none; cursor: pointer;
     background: var(--color-border-strong); position: relative; flex: none; padding: 0;
@@ -314,7 +343,7 @@
 
 <header class="mock-meta">
   <strong>DAMN-32 — app shell &amp; navigation</strong>
-  <span>Terracotta &amp; Cream default · Nunito · pill/rounded · live theming</span>
+  <span>Terracotta default · Nunito · pill/rounded · live theming</span>
   <button id="reset-btn">↺ reset to splash</button>
   <span id="state-label" style="margin-left:auto;"></span>
 </header>
@@ -353,16 +382,17 @@
     <!-- settings popover -->
     <div class="popover settings-pop" id="settings-pop" hidden>
       <h3>Appearance</h3>
-      <div class="setting-row">
-        <label for="theme-switch">Dark mode</label>
-        <button class="switch" id="theme-switch" role="switch" aria-checked="false" aria-labelledby="theme-switch"></button>
+      <div class="setting-row mode-row">
+        <span class="mode-label" id="mode-light">Light</span>
+        <button class="switch" id="theme-switch" role="switch" aria-checked="false" aria-label="Dark mode"></button>
+        <span class="mode-label" id="mode-dark">Dark</span>
       </div>
       <div class="setting-row">
         <label for="palette-select">Theme</label>
         <select class="select" id="palette-select">
-          <option value="terracotta">Terracotta &amp; Cream</option>
-          <option value="sage">Sage &amp; Butter</option>
-          <option value="plum">Deep Plum &amp; Gold</option>
+          <option value="terracotta">Terracotta</option>
+          <option value="sage">Sage</option>
+          <option value="plum">Plum</option>
         </select>
       </div>
     </div>
@@ -383,7 +413,7 @@
 
   <div class="nav-rail" id="nav-rail" hidden>
     <div class="nav-create-wrap">
-      <button class="btn btn-primary btn-block" id="create-btn">+ Create</button>
+      <button class="btn btn-primary btn-block" id="create-btn"><span class="btn-affix">+</span>Create</button>
       <div class="menu create-menu" id="create-menu" hidden>
         <button>Recipe</button>
         <button>Shopping list</button>
@@ -451,10 +481,13 @@
   let prefs = loadPrefs();
   applyPrefs(prefs);
 
-  themeSwitch.addEventListener('click', () => {
-    prefs = { ...prefs, dark: !prefs.dark };
+  function setDark(dark) {
+    prefs = { ...prefs, dark };
     applyPrefs(prefs); savePrefs(prefs);           // paints immediately
-  });
+  }
+  themeSwitch.addEventListener('click', () => setDark(!prefs.dark));
+  document.getElementById('mode-light').addEventListener('click', () => setDark(false));
+  document.getElementById('mode-dark').addEventListener('click', () => setDark(true));
   paletteSelect.addEventListener('change', () => {
     prefs = { ...prefs, palette: paletteSelect.value };
     applyPrefs(prefs); savePrefs(prefs);           // paints immediately
