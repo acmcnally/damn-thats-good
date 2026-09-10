@@ -69,7 +69,9 @@ This issue sets the pattern for the whole frontend. Owner-approved 2026-09-10.
 
 ## Routing
 
-`react-router` v8 (Data Mode): `createBrowserRouter` + `<RouterProvider>` (from `react-router/dom`), route config as data — not JSX `<Routes>`, and not v8's file-based Framework Mode. Clean config/render separation, and the forward-looking API for when DAMN-2+ wants loaders.
+`react-router` v8 (Data Mode): `createBrowserRouter` + `<RouterProvider>`, route config as data — not JSX `<Routes>`, and not v8's file-based Framework Mode. Clean config/render separation, and the forward-looking API for when DAMN-2+ wants loaders.
+
+**Import paths (v8-specific, verified against 8.3.1):** `createBrowserRouter`, `createMemoryRouter`, `Outlet`, `Navigate`, `NavLink`, `useLocation` etc. all come from `react-router`. `RouterProvider` is imported from **`react-router/dom`** specifically — v8 ships two `RouterProvider` implementations, and the `/dom` one is the DOM/hydration-aware variant a browser SPA needs (the `react-router` one is the generic/RSC variant). This is deliberate, not incidental.
 
 ### Structure — nested layout routes (not per-route wrappers)
 
@@ -97,7 +99,7 @@ DAMN-1's "`onRedirectCallback` intercepts before route code runs" held only beca
 
 Fix:
 - Explicit `/callback` route rendering `<AuthCallback>` — an inert full-screen spinner that **never navigates**.
-- `AuthKitProvider`'s `onRedirectCallback` is wired to `router.navigate(...)` (post-exchange) rather than letting the SDK do a raw `history.replaceState` that wouldn't re-trigger route matching.
+- `AuthKitProvider`'s `onRedirectCallback` is wired to `router.navigate(...)` (post-exchange) rather than letting the SDK do a raw `history.replaceState` that wouldn't re-trigger route matching. **Implementation must confirm `@workos-inc/authkit-react@0.16.2`'s `onRedirectCallback` signature** (arg shape — likely `{ state }` carrying a `returnTo`) and that overriding it doesn't disable the SDK's own post-exchange cleanup. This is the one genuinely fuzzy Data-Mode ↔ AuthKit seam; everything else in the routing design is stable react-router API.
 - Component test: mounting `/callback` renders the spinner and **does not** render Splash or redirect.
 
 ### The E2E bypass, across the new route boundaries (review finding #3)
