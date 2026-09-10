@@ -1,6 +1,6 @@
 /**
- * Pure appearance helpers — DAMN-32. No React, no direct DOM: unit-tested in
- * isolation. `AppearanceProvider` is the only caller.
+ * Pure appearance helpers. No React, no direct DOM: unit-tested in isolation.
+ * `AppearanceProvider` is the only caller.
  */
 
 import type { AppearancePref, ColorMode, EffectiveMode } from './types';
@@ -75,9 +75,9 @@ export function resolveEffectiveMode(mode: ColorMode, systemPrefersDark: boolean
 }
 
 /**
- * Pick the newer of a local and a remote preference by `updatedAt`. DAMN-14's
- * seam: on login the server value reconciles against the local copy. A tie keeps
- * `remote` (the server is canonical when nothing distinguishes them).
+ * Pick the newer of a local and a remote preference by `updatedAt` — the seam
+ * for a future login reconcile of a server value against the local copy. A tie
+ * keeps `remote` (the server is canonical when nothing distinguishes them).
  */
 export function mergePref(local: AppearancePref, remote: AppearancePref): AppearancePref {
   return remote.updatedAt >= local.updatedAt ? remote : local;

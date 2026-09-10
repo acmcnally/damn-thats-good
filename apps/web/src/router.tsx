@@ -1,5 +1,5 @@
 /**
- * Route table — DAMN-32.
+ * Route table.
  *
  * `react-router` v8 Data Mode: a plain route-config array feeds
  * `createBrowserRouter` here and `createMemoryRouter` in component tests (imported

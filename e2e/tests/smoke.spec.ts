@@ -15,12 +15,12 @@ test('serves the app, gets past auth, reaches the database, and renders the shel
 
   await page.goto('/');
 
-  // The persistent shell renders (DAMN-32): left nav rail + top-bar controls.
+  // The persistent shell renders: left nav rail + top-bar controls.
   await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible();
 
-  // Auth chain (DAMN-1): the avatar-menu identity line is GET /api/me returning
-  // the fixed e2e user — a full web → API → Postgres round trip through the
+  // Auth chain: the avatar-menu identity line is GET /api/me returning the
+  // fixed e2e user — a full web → API → Postgres round trip through the
   // JIT-provisioned `users` row. Sign-out itself is not exercised here (under the
   // bypass cookie signOut() can't clear it, and it would fire a live WorkOS
   // logout) — Splash-on-sign-out is covered in the component tier.

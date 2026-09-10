@@ -1,4 +1,4 @@
-/** Shopping Lists — DAMN-32. Route reserved now; the feature is DAMN-11 (V2). */
+/** Shopping Lists — route reserved now; the feature itself is a later (V2) story. */
 
 import styles from './pages.module.css';
 
@@ -9,7 +9,7 @@ export function ShoppingListsPage() {
       <h1>Shopping Lists</h1>
       <p>
         Manually-built lists, populated from an &ldquo;Add to shopping list&rdquo; action on a
-        recipe &mdash; a V2 feature (DAMN-11). The nav slot is reserved now.
+        recipe &mdash; a V2 feature. The nav slot is reserved now.
       </p>
     </div>
   );

@@ -30,7 +30,7 @@ root.render(<Shell>Loading…</Shell>);
 
 /**
  * `state` round-trips through the OAuth redirect as untrusted URL input (the SDK
- * cannot validate it). DAMN-32 never sets `state.returnTo`, so this resolves to
+ * cannot validate it). Nothing sets `state.returnTo` yet, so this resolves to
  * `/` in practice — the origin check is defensive, and the seam for a later
  * deep-link-preserving flow.
  */

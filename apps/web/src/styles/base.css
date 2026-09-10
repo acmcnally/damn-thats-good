@@ -1,6 +1,6 @@
 /*
- * Global base styles — DAMN-32. Imported once from main.tsx, alongside tokens.css.
- * Not a CSS Module; every component still colocates its own *.module.css.
+ * Global base styles. Imported once from main.tsx, alongside tokens.css. Not a
+ * CSS Module; every component still colocates its own *.module.css.
  */
 
 /*

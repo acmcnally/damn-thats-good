@@ -1,7 +1,7 @@
 /**
- * Hand-inlined SVG icon set — DAMN-32. No icon library (technical-design.md).
- * Each is a 24×24 stroke icon that inherits `currentColor`; size via CSS on the
- * parent or a passed `className`. Paths from Lucide (ISC-licensed) line set.
+ * Hand-inlined SVG icon set — no icon library. Each is a 24×24 stroke icon that
+ * inherits `currentColor`; size via CSS on the parent or a passed `className`.
+ * Paths from Lucide (ISC-licensed) line set.
  */
 
 import type { SVGProps } from 'react';

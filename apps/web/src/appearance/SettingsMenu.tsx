@@ -1,6 +1,6 @@
 /**
- * SettingsMenu — DAMN-32. The gear popover in the top bar: a Light/Dark switch
- * and a palette picker. Every change repaints live (AppearanceProvider). Stays
+ * SettingsMenu — the gear popover in the top bar: a Light/Dark switch and a
+ * palette picker. Every change repaints live (AppearanceProvider). Stays
  * open until an outside click or `Escape` (PopoverGroup), then focus returns to
  * the gear. This is the one genuinely functional piece of chrome in the shell.
  *

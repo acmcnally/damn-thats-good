@@ -1,7 +1,7 @@
 /**
- * DefaultAvatar — DAMN-32. Inline SVG person mark in `currentColor`. Static: the
- * only avatar there is until DAMN-24 adds photo storage. Decorative — the
- * surrounding control carries the accessible name.
+ * Inline SVG person mark in `currentColor`. Static: the only avatar there is
+ * until user photo storage lands. Decorative — the surrounding control carries
+ * the accessible name.
  */
 
 import type { SVGProps } from 'react';

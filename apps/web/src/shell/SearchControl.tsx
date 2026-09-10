@@ -1,6 +1,7 @@
 /**
- * SearchControl — DAMN-32. Inert: DAMN-6 owns search behaviour. Two variants:
- * `hero` (centered on `/`) and `bar` (in the top bar everywhere else).
+ * SearchControl — inert; search behaviour (ranking, matching) is a later
+ * feature. Two variants: `hero` (centered on `/`) and `bar` (in the top bar
+ * everywhere else).
  */
 
 import { SearchIcon } from '../components/icons';
@@ -19,8 +20,8 @@ export function SearchControl({ variant }: SearchControlProps) {
         className={styles.input}
         placeholder="Search recipes"
         aria-label="Search recipes"
-        // Inert for DAMN-32 — no handler, no results. Kept enabled so it reads as
-        // a real affordance; DAMN-6 wires it up.
+        // Inert — no handler, no results. Kept enabled so it reads as a real
+        // affordance; the search feature wires it up later.
       />
     </div>
   );

@@ -1,6 +1,6 @@
 /**
- * Profile — DAMN-32 placeholder. The real view/edit page and avatar handling are
- * DAMN-14. The identity line reuses the shared `GET /api/me` (DAMN-1) fetch.
+ * Profile — placeholder. The real view/edit page and avatar handling are a
+ * later feature. The identity line reuses the shared `GET /api/me` fetch.
  */
 
 import { useMe } from '../shell/MeProvider';
@@ -13,12 +13,12 @@ export function ProfilePage() {
     <div className={styles.page}>
       <h1 className={styles.title}>Profile</h1>
       <p className={styles.lead}>
-        This is the Profile page. The real view/edit page and avatar handling are DAMN-14.
+        This is the Profile page. The real view/edit page and avatar handling are coming soon.
       </p>
       <div className={styles.card}>
         <span className={styles.eyebrow}>Placeholder</span>
         <h2>{me.status === 'ok' ? `Signed in as ${me.data.email}` : 'Signed in'}</h2>
-        <p>Default avatar until DAMN-24 adds photo storage.</p>
+        <p>Default avatar until user photo storage lands.</p>
       </div>
     </div>
   );

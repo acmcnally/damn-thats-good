@@ -1,5 +1,5 @@
 /**
- * AppShell — DAMN-32. The persistent authenticated frame: a layout route (not a
+ * AppShell — the persistent authenticated frame: a layout route (not a
  * per-page wrapper), so it mounts once and survives every navigation. Grid of
  * top bar + left nav rail + routed content. Wraps the interactive chrome in a
  * single `<PopoverGroup>` so the settings, avatar, and create popovers

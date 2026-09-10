@@ -1,7 +1,7 @@
 /**
- * NavRail — DAMN-32. The persistent left rail: a Create button + menu (inert —
- * DAMN-2 / DAMN-11 own the targets) and the primary nav. Active route is
- * highlighted via `NavLink`.
+ * NavRail — the persistent left rail: a Create button + menu (inert; recipe
+ * entry and shopping lists are later features) and the primary nav. Active
+ * route is highlighted via `NavLink`.
  */
 
 import { NavLink } from 'react-router';
@@ -38,7 +38,7 @@ export function NavRail() {
           aria-label="Create"
           hidden={!isOpen}
         >
-          {/* Inert — DAMN-2 (recipe entry) and DAMN-11 (shopping lists) wire these. */}
+          {/* Inert — the recipe-entry and shopping-list flows wire these later. */}
           <button type="button" className={styles.createMenuItem} onClick={close}>
             Recipe
           </button>

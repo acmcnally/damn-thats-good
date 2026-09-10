@@ -1,6 +1,6 @@
 /**
- * AvatarMenu — DAMN-32. The avatar button (top-right) and its menu: an identity
- * line, Profile (→ `/profile`), and Sign out (→ AuthKit `signOut`). The default
+ * AvatarMenu — the avatar button (top-right) and its menu: an identity line,
+ * Profile (→ `/profile`), and Sign out (→ AuthKit `signOut`). The default
  * avatar always renders; the identity line shows a skeleton while `GET /api/me`
  * is pending and renders nothing on error (no error UI in a menu).
  *

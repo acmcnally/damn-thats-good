@@ -1,5 +1,5 @@
 /**
- * TopBar — DAMN-32. Route-aware search slot + the account cluster (settings gear,
+ * TopBar — route-aware search slot + the account cluster (settings gear,
  * avatar). Search placement is a pure function of the path: the bar shows its
  * search only off `/` (on `/`, `Home` renders the centered hero instead). No
  * shared state — `Home` mounts only at `/`, so exactly one search renders.

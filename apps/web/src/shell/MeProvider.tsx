@@ -1,6 +1,6 @@
 /**
- * MeProvider — fetches `GET /api/me` (DAMN-1) exactly once for the whole authed
- * session and shares it. Mounted in `AppShell` (persistent), so the avatar-menu
+ * MeProvider — fetches `GET /api/me` exactly once for the whole authed session
+ * and shares it. Mounted in `AppShell` (persistent), so the avatar-menu
  * identity line and the Profile placeholder read the same request rather than
  * each firing their own.
  *

@@ -1,6 +1,4 @@
 /**
- * PopoverGroup — DAMN-32.
- *
  * A registry so the shell's three popovers (settings, avatar menu, create menu)
  * coordinate: opening one closes the others, and an outside click or `Escape`
  * closes whichever is open. Three independent `usePopover()` instances can't do

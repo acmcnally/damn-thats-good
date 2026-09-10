@@ -2,9 +2,9 @@ import { E2E_BYPASS_COOKIE } from '@dtg/shared';
 import { Navigate } from 'react-router';
 
 /**
- * DAMN-1 E2E auth bypass — `loginAsTestUser` (e2e/support/auth.ts) sets this
- * cookie on the browser context before navigation. Present ⇒ skip the "redirect
- * to AuthKit" gate and render the app directly (there's no headless way to
+ * E2E auth bypass — `loginAsTestUser` (e2e/support/auth.ts) sets this cookie on
+ * the browser context before navigation. Present ⇒ skip the "redirect to
+ * AuthKit" gate and render the app directly (there's no headless way to
  * complete a real email-OTP round trip in CI). Same-origin, so it also rides
  * along automatically on every `/api/*` fetch — the server enforces the actual
  * invariant (`E2E_AUTH_BYPASS=1` on its own process is the sole authority; this

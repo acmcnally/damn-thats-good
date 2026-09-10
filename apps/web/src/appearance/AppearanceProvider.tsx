@@ -1,14 +1,12 @@
 /**
- * AppearanceProvider — DAMN-32.
- *
  * Owns the live appearance state after mount (the inline FOUC script in
  * index.html sets the initial attributes before first paint). Writes
  * `data-palette` / `data-theme` on <html>, persists to localStorage, and tracks
  * the OS `prefers-color-scheme` while `mode` is `null` (follow system).
  *
- * DAMN-14 seam: `remoteValue` (a server-synced pref) and `onLocalChange` (called
- * on every local edit) are the injection points for cross-device sync — unused
- * in DAMN-32, wired so DAMN-14 needn't rewrite the provider.
+ * Cross-device sync is a later feature; `remoteValue` (a server-synced pref) and
+ * `onLocalChange` are its injection points — unused today, wired so that work
+ * needn't rewrite the provider.
  */
 
 import {
@@ -48,14 +46,15 @@ function systemPrefersDark(): boolean {
 interface AppearanceProviderProps {
   children: ReactNode;
   /**
-   * DAMN-14: a server-synced preference. Read once at mount; when newer than the
-   * local copy it wins the initial render. DAMN-14 owns the rest of the
-   * contract — reacting to an async-arriving value, and deciding whether/how a
-   * remote win is written back to localStorage (this component does not persist
-   * it, to avoid restamping the server's `updatedAt`).
+   * A server-synced preference (cross-device sync, a later feature). Read once
+   * at mount; when newer than the local copy it wins the initial render. That
+   * later work owns the rest of the contract — reacting to an async-arriving
+   * value, and deciding whether/how a remote win is written back to localStorage
+   * (this component does not persist it, to avoid restamping the server's
+   * `updatedAt`).
    */
   remoteValue?: AppearancePref;
-  /** DAMN-14: called with the full pref (incl. fresh `updatedAt`) after a real local edit only. */
+  /** Called with the full pref (incl. fresh `updatedAt`) after a real local edit only. */
   onLocalChange?: (pref: AppearancePref) => void;
 }
 
@@ -109,8 +108,8 @@ export function AppearanceProvider({
 
   // Persist + notify only on a real user edit. A value that arrived via
   // `remoteValue` or was just read from storage is never echoed back as a local
-  // change — DAMN-14's merge signal depends on that, and it keeps a StrictMode
-  // remount from restamping `updatedAt`.
+  // change — the future sync merge relies on `updatedAt` being a true edit
+  // signal, and this keeps a StrictMode remount from restamping it.
   const userEditedRef = useRef(false);
   useEffect(() => {
     if (!userEditedRef.current) return;
