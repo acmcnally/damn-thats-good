@@ -47,16 +47,14 @@ Settled direction:
 
 | Package | Why | Notes |
 |---|---|---|
-| `react-router` (v7.x, exact-pinned) | Client-side routing | v7 is the current line; `createBrowserRouter` + `<RouterProvider>` API (see Routing). One dep — `react-router-dom` merged into `react-router` in v7. |
+| `react-router` (v7.x, `^` range to match the repo's `react`/`react-dom` convention) | Client-side routing | v7 is the current line; `createBrowserRouter` + `<RouterProvider>` API (see Routing). One dep — `react-router-dom` merged into `react-router` in v7. |
 | `@fontsource-variable/rubik` (or `@fontsource/rubik` weights 400/500/600/700) | Self-hosted Rubik | Bundled, no runtime request to Google Fonts — fits ADR-0004's "no avoidable external runtime deps" and keeps the self-hosted app private. Imported once in `styles/base.css`. Latin subset only. |
 
 No other additions. Icons are hand-inlined SVG (a small `components/icons.tsx` set) — no icon library.
 
-## Styling approach — **decision needed**
+## Styling approach — **decided: plain CSS + CSS Modules, tokens as CSS custom properties**
 
-This issue sets the pattern for the whole frontend, so it's called out explicitly rather than assumed.
-
-**Recommendation: plain CSS + CSS Modules, tokens as CSS custom properties.**
+This issue sets the pattern for the whole frontend. Owner-approved 2026-09-10.
 
 - `styles/tokens.css` and `styles/base.css` — plain global stylesheets, imported once in `main.tsx`. Not modules.
 - Every component gets a colocated `Component.module.css`. Vite has built-in CSS-Modules support (`*.module.css`), zero config, zero runtime.
@@ -73,28 +71,60 @@ This issue sets the pattern for the whole frontend, so it's called out explicitl
 
 `react-router` v7, `createBrowserRouter` + `<RouterProvider>` (route config as data, not JSX `<Routes>` — cleaner separation and the forward-looking API for when DAMN-2+ wants loaders).
 
+### Structure — nested layout routes (not per-route wrappers)
+
+`AppShell` must be **persistent** across every authed screen (the issue's premise), so it is a *layout route* with an `<Outlet/>`, not a wrapper repeated per page. Repeating `<AuthGate><AppShell>…` per route would remount the shell on every navigation → nav-rail flicker, lost scroll, and `hasNavigated` (see Search placement) reset on every click.
+
 ```
-/                 → AuthGate → AppShell → <Home>            (authed; centered search on first entry)
-/recipes          → AuthGate → AppShell → <RecipesPage>     (placeholder)
-/shopping-lists   → AuthGate → AppShell → <ShoppingListsPage> ("Coming soon")
-/data             → AuthGate → AppShell → <DataPage>        (reference-data placeholder + disabled export)
-/profile          → AuthGate → AppShell → <ProfilePage>     (placeholder)
-/login            → <LoginRedirect>   (calls AuthKit signIn(); no shell)
-/callback         → handled by AuthKitProvider's onRedirectCallback before any route renders
-*                 → redirect to /
+<AuthGate>                       layout route — auth gate, renders <Outlet/> when authed
+  <AppShell>                     layout route — grid frame (top bar + nav rail + <Outlet/>)
+    index            → <Home>              (centered search until first navigation)
+    "recipes"        → <RecipesPage>       (placeholder)
+    "shopping-lists" → <ShoppingListsPage> ("Coming soon")
+    "data"           → <DataPage>          (reference-data placeholder + disabled export)
+    "profile"        → <ProfilePage>       (placeholder)
+"login"      → <LoginRedirect>   (outside AuthGate — calls signIn(); no shell)
+"callback"   → <AuthCallback>    (outside AuthGate — inert; see below)
+"*"          → <Navigate to="/" replace>  (outside AuthGate; a logged-out user hitting an
+                                            unknown path lands on "/" → Splash, not a bounce)
 ```
 
-- **`AuthGate`** — extracted from DAMN-1's `App.tsx`. Same logic, unchanged semantics: E2E bypass cookie short-circuits; `/login` always triggers `signIn()`; loading state; `!user` → `signIn()`. It wraps the shell routes; `/login` sits outside it.
-- **`AppShell`** — the CSS-grid frame (top bar + nav rail + `<Outlet/>`). Persistent across the authed routes.
-- The unauthenticated **Splash** is what `AuthGate` renders in place of `signIn()`-redirect when we want a landing rather than an immediate bounce — i.e. `/` while signed out shows Splash with a "Log in" button (button calls `signIn()`); every other path while signed out redirects through `signIn()`. *(Minor refinement of DAMN-1, where any unauthenticated path bounced straight to AuthKit. Confirm during implementation that AuthKit's initiate-login expectations are still met — the `/login` route is unchanged.)*
-- Caddy (`infra/Caddyfile`) and the Vite dev server already do SPA fallback (`try_files … /index.html`), so deep links to `/recipes` etc. work in every environment. No infra change.
+`router.tsx` **exports the route-config array separately** from the `createBrowserRouter(...)` instance, so component tests can build a `createMemoryRouter(routes, { initialEntries: ['/login'] })` — the five migrated `App.component.test.tsx` path-based cases need this.
+
+### `/callback` — explicit inert route (review finding #1)
+
+DAMN-1's "`onRedirectCallback` intercepts before route code runs" held only because there was no router. With a data router, `/callback` is now matched route code: without an explicit entry, `*` matches it and its `<Navigate to="/">` fires on mount (child effects before parent) — `history.replace('/')` drops `?code=…` before `AuthKitProvider`'s effect reads it, and sign-in intermittently lands back on Splash.
+
+Fix:
+- Explicit `/callback` route rendering `<AuthCallback>` — an inert full-screen spinner that **never navigates**.
+- `AuthKitProvider`'s `onRedirectCallback` is wired to `router.navigate(...)` (post-exchange) rather than letting the SDK do a raw `history.replaceState` that wouldn't re-trigger route matching.
+- Component test: mounting `/callback` renders the spinner and **does not** render Splash or redirect.
+
+### The E2E bypass, across the new route boundaries (review finding #3)
+
+DAMN-1's `App.tsx` checks `hasE2eBypassCookie()` *first*, before anything else. In the new structure `/login` and `/callback` are **outside** `AuthGate`, and each has a component that acts on mount — `<LoginRedirect>` calls `signIn()`, `<AuthCallback>` waits for a code exchange — so a bypass-context hit on either (e.g. `apiClient.ts` doing `window.location.assign('/login')` on a stray 401) would fire a real WorkOS flow instead of rendering the app.
+
+Fix: **every entry point that can trigger auth checks `hasE2eBypassCookie()` first** — a one-line guard, extracted to `auth/bypass.ts` (`hasE2eBypassCookie()` + a `<BypassRedirect/>` helper that `<Navigate to="/" replace>`s):
+- `AuthGate` — bypass ⇒ render `<Outlet/>` (treat session as authed), exactly as `App.tsx` does today.
+- `LoginRedirect` — bypass ⇒ `<Navigate to="/" replace>` instead of `signIn()`.
+- `AuthCallback` — bypass ⇒ `<Navigate to="/" replace>` instead of waiting.
+
+Everything else in `AuthGate` keeps DAMN-1's semantics: loading state; `!user` on `/` → Splash; `!user` elsewhere → `signIn()`. The **server env var remains the sole authority** — the cookie alone still grants nothing, and none of these client guards change that.
+
+### Splash
+
+`AuthGate`, signed out: on `/` it renders **Splash** (centered wordmark + "Log in" button → `signIn()`); on any other path it redirects through `signIn()`. This is a **frozen-scope requirement** — the issue's "Unauthenticated: splash screen" section — not a refinement; DAMN-1 simply deferred all UI. DAMN-1's WorkOS runbook is unaffected: the registered Initiate Login URI (`/login`), the redirect/CORS/sign-out-return allowlists, and the invite-only toggle are all unchanged. Only the *default* behaviour of unauthenticated `/` changes, from immediate bounce to a landing page.
+
+### SPA fallback
+
+Caddy (`infra/Caddyfile`) and the Vite dev server already do `try_files … /index.html`, so deep links to `/recipes` etc. resolve in every environment. No infra change.
 
 ## Design tokens & theming
 
 ### Token layer (`apps/web/src/styles/tokens.css`)
 
 - **Structural tokens on `:root`** (palette-neutral): `--font-sans` (`'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`), the type scale per the locked table above (`--text-xs` = 12px is the floor), weights (`--weight-regular 400 / -medium 500 / -semibold 600 / -bold 700`), line-heights, spacing (`--space-1 … --space-8`, 8pt), radii (`--radius-sm/md/lg/full`), elevation (`--shadow-1/2`), motion (`--dur-*`, easing).
-- **Color tokens scoped by palette + mode**: `[data-palette="terracotta"] { … light values … }` and `[data-palette="terracotta"][data-theme="dark"] { … dark overrides … }`, ×3 palettes. Semantic names only — `--color-bg-primary`, `--color-text-primary/secondary/tertiary`, `--color-border`/`-strong`, `--color-brand` (fixed per palette across modes), `--color-accent`/`-hover`/`-muted`, `--color-text-on-accent`, `--color-focus`, `--color-danger`. Concrete hex values + WCAG-AA contrast results are in `mockups/palette-typography.html` (all pairs pass AA; `--color-brand` is checked at the 3:1 large-text/graphic threshold since it's the wordmark).
+- **Color tokens scoped by palette + mode**: `:root[data-palette="terracotta"] { … light values … }` and `:root[data-palette="terracotta"][data-theme="dark"] { … dark overrides … }`, ×3 palettes. **The selector is `:root[data-palette=…]` — the FOUC script writes the attributes on `<html>` (`document.documentElement`).** The mockup (`app-shell.html`) scopes to `.app[data-palette=…]` only because it's a framed component inside a review page; do **not** copy that selector — attributes on `<html>` would match nothing and styling would silently break while an `html[data-theme]` e2e assertion still passed (review finding #6). Semantic names only — `--color-bg-primary`, `--color-text-primary/secondary/tertiary`, `--color-border`/`-strong`, `--color-brand` (fixed per palette across modes), `--color-accent`/`-hover`/`-muted`, `--color-text-on-accent`, `--color-focus`, `--color-danger`. Concrete hex values + WCAG-AA contrast results are in `mockups/palette-typography.html` (all pairs pass AA; `--color-brand` is checked at the 3:1 large-text/graphic threshold since it's the wordmark).
 - No `packages/` promotion — these are web-presentation-only. DAMN-14 promotes `ColorMode`/`Palette` *type* names to `@dtg/shared` if/when the profile DTO needs them.
 
 ### Applying the theme
@@ -114,9 +144,11 @@ Two `data-*` attributes on `<html>`: `data-palette` (`terracotta` default) and `
      } catch (e) {}
    </script>
    ```
-   `index.html` is promoted across environments unchanged (ADR-0010) — safe here: this script reads only `localStorage`, no env-specific or build-time content. The palette allow-list is duplicated (also in `appearance/types.ts`) — accepted, the pre-module script can't import; keep both in sync (a comment cross-references).
-2. **`AppearanceProvider`** (React context) takes over after mount: holds `{ mode: 'light' | 'dark' | null, palette }`, writes both `data-*` attributes via effect, persists to `localStorage` on change, exposes `useAppearance()` → `{ mode, palette, effectiveMode, setMode, setPalette }`. `mode: null` = follow system (default until the user first flips the switch); the switch shows `effectiveMode`.
-3. **`resolve.ts`** — pure helpers (`readStored()`, `writeStored()`, `resolveEffectiveMode(stored, systemPrefersDark)`), unit-tested independently of React/DOM.
+   `index.html` is promoted across environments unchanged (ADR-0010) — safe here: this script reads only `localStorage`, no env-specific or build-time content. The palette allow-list is duplicated (also in `appearance/types.ts`) — accepted, the pre-module script can't import; keep both in sync (a comment cross-references). **CSP note:** this inline script forecloses a nonce-free strict CSP when Cloudflare ingress lands (ADR-0004 / DAMN-30). It's static — commit to shipping its `sha256-…` hash in the eventual `script-src` and leave a `<!-- CSP: hash this -->` marker.
+2. **`AppearanceProvider`** (React context) takes over after mount: holds `{ mode: 'light' | 'dark' | null, palette }`, writes both `data-*` attributes on `document.documentElement` via effect, persists to `localStorage` on change, exposes `useAppearance()` → `{ mode, palette, effectiveMode, setMode, setPalette }`. `mode: null` = follow system (default until the user first flips the switch); the switch shows `effectiveMode`. **DAMN-14 seam:** the provider takes optional props `remoteValue?: AppearancePref` and `onLocalChange?: (pref) => void` — unused in DAMN-32, the injection point for DAMN-14's server reconciliation so it doesn't have to rewrite the provider.
+   - **Known one-way door (accepted for V1):** once the user touches the switch, `mode` is `'light' | 'dark'` and there's no UI to return to `'follow system'`. Fine for V1; DAMN-14 can add a "System" option to the control if wanted, and its sync semantics should preserve `null` as a real state.
+3. **`resolve.ts`** — pure helpers (`readStored()`, `writeStored()`, `resolveEffectiveMode(stored, systemPrefersDark)`, `mergePref(local, remote)`), unit-tested independently of React/DOM.
+4. **Stored shape** (`dtg.appearance` in `localStorage`): `{ mode: 'light' | 'dark' | null, palette: Palette, updatedAt: number }`. `updatedAt` (epoch ms, written on every change) is included **now** — DAMN-14's "server value reconciles against the local copy on login" needs a merge signal, and a client that wrote entries without it can't be migrated later (review finding #7). `readStored()` tolerates a missing `updatedAt` (treats as `0`).
 
 ### Motion
 
@@ -126,25 +158,28 @@ Menu/popover open uses a ≤150ms scale+fade (`--dur-quick` ceiling per ADR-0012
 
 | File | Role |
 |---|---|
-| `main.tsx` | Mount `<RouterProvider>` inside the existing `AuthKitProvider` + `AppearanceProvider`; keep DAMN-1's `GET /api/config` bootstrap. |
-| `router.tsx` | Route config (above). |
-| `auth/AuthGate.tsx` | Extracted from `App.tsx` — auth gate + E2E bypass. Wraps shell routes. |
+| `main.tsx` | Keep DAMN-1's `GET /api/config` bootstrap, then mount `<RouterProvider>` inside `AuthKitProvider` + `AppearanceProvider`. `onRedirectCallback` on `AuthKitProvider` calls `router.navigate`. |
+| `router.tsx` | Exports `routes` (the config array) **and** `router = createBrowserRouter(routes)` separately — tests import `routes` for `createMemoryRouter`. |
+| `auth/AuthGate.tsx` | Layout route — auth gate logic from `App.tsx`: bypass cookie first → `<Outlet/>`; then `isLoading` → loader; `!user` on `/` → `<Splash>`; `!user` elsewhere → `signIn()`; else `<Outlet/>`. |
+| `auth/bypass.ts` | `hasE2eBypassCookie()` (moved from `e2eBypass.ts`, or re-exported) + `<BypassRedirect/>`. Used by `AuthGate`, `LoginRedirect`, `AuthCallback`. |
+| `routes/AuthCallback.tsx` | `/callback`: bypass → redirect to `/`; else an inert full-screen spinner that never navigates (see Routing). |
 | `routes/Splash.tsx` | Unauthenticated landing — centered wordmark, "Log in" (→ `signIn()`). |
-| `shell/AppShell.tsx` | Grid frame: `<TopBar>` + `<NavRail>` + `<Outlet/>`. Owns the session `hasNavigated` state (set true on first navigation away from `/`). |
+| `auth/LoginRedirect.tsx` | `/login`: bypass → redirect to `/`; else `signIn()` on mount (DAMN-1's `SignInRedirect`, unchanged). |
+| `shell/AppShell.tsx` | Grid frame: `<TopBar>` + `<NavRail>` + `<Outlet/>`. Holds a `hasNavigatedRef` (set true the first time `useLocation().pathname` becomes `!== '/'`); search placement is **derived**, not a pure latch: `pathname !== '/' || hasNavigatedRef.current` → top-bar, else hero (review finding #4 — a pure event latch leaves *no* search control on a deep-link/reload to `/recipes`). |
+| `shell/PopoverGroup.tsx` + `usePopoverGroup()` | A context/registry so "one popover open at a time" actually works — three independent `usePopover()` instances can't coordinate. The group tracks the open id; opening one closes the others. Each menu still owns its own outside-click / `Escape` / focus-return. |
 | `shell/TopBar.tsx` | Search slot (placement-aware) + gear + avatar. |
 | `shell/NavRail.tsx` | Create button + menu (Recipe / Shopping list — inert), nav items (Recipes, Shopping Lists, divider, Data), active-route highlight via `NavLink`. |
 | `shell/SearchControl.tsx` | Inert search input; `variant="hero" | "bar"`. |
 | `appearance/SettingsMenu.tsx` | Gear popover — Light/Dark switch + palette `<select>`. |
-| `shell/AvatarMenu.tsx` | Profile (→ `/profile`) / Sign out (→ `signOut()`). |
-| `shell/usePopover.ts` | Shared hook: open/close, outside-click-to-dismiss, one-open-at-a-time, `Escape` to close, focus return. Used by the three menus. |
-| `routes/Home.tsx` | Authed home — hero search on first entry, otherwise minimal. |
+| `shell/AvatarMenu.tsx` | Profile (→ `/profile`) / Sign out (→ `signOut()`). Identity line from `GET /api/me`: default avatar renders immediately and always; the email/name line shows a skeleton while pending and **stays silent on error** (no error UI in a menu — the avatar + Profile/Sign out still work). |
+| `routes/Home.tsx` | Authed home — renders the hero search only when `AppShell` says placement is `hero`; otherwise minimal. |
 | `routes/RecipesPage.tsx` `ShoppingListsPage.tsx` `DataPage.tsx` `ProfilePage.tsx` | Placeholder pages per the mockup. |
 | `appearance/{types,resolve,AppearanceProvider}.ts(x)` | Theming (above). |
 | `components/DefaultAvatar.tsx` | Inline SVG person mark, `currentColor`. Static, until DAMN-24. |
 | `components/icons.tsx` | Inlined SVG set (gear, search, book, cart, database, arrow, sign-out, user). |
 | `styles/tokens.css` `styles/base.css` | Global stylesheets (reset, `@font-face` via `@fontsource`, tokens). |
 
-**Deleted:** `Landing.tsx`, `Landing.component.test.tsx` (absorbed into `Home` + shell). `App.tsx` → becomes `auth/AuthGate.tsx` (or stays as a thin composition root; decide during implementation). `apiClient.ts`, `e2eBypass.ts` unchanged.
+**Moved/deleted:** `Landing.tsx`, `Landing.component.test.tsx` deleted (absorbed into `Home` + shell). `App.tsx` → `auth/AuthGate.tsx` + `auth/LoginRedirect.tsx`. `e2eBypass.ts` → `auth/bypass.ts` (same `hasE2eBypassCookie`, plus `<BypassRedirect/>`). `apiClient.ts` unchanged. `App.component.test.tsx`'s five cases migrate into `auth/AuthGate.component.test.tsx` using `createMemoryRouter(routes, …)`.
 
 ## Data model
 
@@ -156,28 +191,38 @@ Menu/popover open uses a ≤150ms scale+fade (`--dur-quick` ceiling per ADR-0012
 
 ## Config / env changes
 
-**None.** No new env vars. `index.html` gains the inline FOUC script (no env content). `docker-compose.yml` / `deploy/compose.yaml` untouched.
+**None.** No new env vars. `index.html` gains the inline FOUC script (no env content). `docker-compose.yml` / `deploy/compose.yaml` untouched. `apps/web/vitest.setup.ts` gains a `matchMedia` mock (test infra, not runtime).
+
+## Known limitations — accepted for V1
+
+- **Deep-link to a protected route while logged out loses the intended destination** — after auth the user lands on `/`, not the link they clicked. Acceptable for V1 (invite-only, single user); revisit if it bites. Would need stashing the target and honouring it in `onRedirectCallback`.
+- **`mode: 'follow system'` is a one-way door** once the switch is touched (no UI back to `null`). See the AppearanceProvider note; DAMN-14 can add a "System" option.
+- **The inline FOUC script blocks a nonce-free strict CSP** — hash it when DAMN-30 adds CSP.
 
 ## Test plan (ADR-0012 tiers)
 
+**Test setup:** `apps/web/vitest.setup.ts` currently only imports jest-dom. Add a `window.matchMedia` mock (jsdom has none) — `AppearanceProvider` and `resolve.ts` call it, tests throw without it (review nit).
+
 ### Unit (`*.test.ts`, node)
-- `appearance/resolve.ts`: `readStored()` with absent / malformed / partial / valid JSON; `resolveEffectiveMode()` truth table (`mode` set vs `null` × `prefers-color-scheme`); `writeStored()` round-trips; unknown palette → falls back to `terracotta`.
+- `appearance/resolve.ts`: `readStored()` with absent / malformed / partial JSON / missing `updatedAt` (→ `0`) / valid; `resolveEffectiveMode()` truth table (`mode` set vs `null` × `prefers-color-scheme`); `writeStored()` round-trips and stamps `updatedAt`; `mergePref(local, remote)` picks the newer `updatedAt`; unknown palette → `terracotta`.
 
 ### Component-web (`*.component.test.tsx`, jsdom + RTL + MSW)
-- **Auth gate (migrated from `App.component.test.tsx`, all five behaviours preserved):** loading state; no-user → `signIn()`; user present → shell renders; `/login` → always `signIn()`; E2E bypass cookie → shell renders even while "loading" with no user.
+- **Auth gate** — the five `App.component.test.tsx` cases migrated to `createMemoryRouter(routes, { initialEntries: [...] })`: `isLoading` → loader; `!user` on `/` → Splash (**changed from DAMN-1**: was `signIn()`, now a landing — assert Splash + "Log in", `signIn` not called); `!user` on `/recipes` → `signIn()`; `user` present → shell renders; `initialEntries: ['/login']` → always `signIn()`; bypass cookie → shell renders even while `isLoading` with no user.
+- **`/callback`** — `initialEntries: ['/callback?code=x']` renders the spinner, does **not** render Splash, does **not** navigate away on its own (review finding #1). With the bypass cookie → redirects to `/`.
 - **Routing:** clicking each nav item renders the matching placeholder page and updates the URL; `ShoppingListsPage` shows "Coming soon"; `DataPage` shows the disabled export control; unknown path → redirect to `/`.
-- **Avatar menu:** opens on click; "Profile" navigates to `/profile`; "Sign out" calls the injected `signOut`.
-- **Settings menu:** opens on gear click; clicking inside (toggling dark, changing palette) does **not** close it; outside click closes it; `Escape` closes it. Toggling dark sets `document.documentElement.dataset.theme`; choosing a palette sets `dataset.palette`; both write `localStorage['dtg.appearance']` (asserted via a spy or a real jsdom `localStorage`).
-- **Appearance provider:** mounts from a seeded `localStorage` value and applies both attributes; `prefers-color-scheme` drives the default when `mode` is null (mock `matchMedia`).
-- **Search placement:** `<Home>` on `/` with `hasNavigated=false` renders the hero search and no top-bar search; after a navigation, the top-bar search renders.
+- **Shell persistence:** navigating Recipes → Data → Profile keeps one `AppShell` mounted (the nav rail node identity is stable / a `useEffect` mount-counter on `AppShell` fires once).
+- **Search placement (review finding #4):** hero on `/` with no prior navigation; top-bar after navigating away and back to `/`; **top-bar on a direct mount at `/recipes`** (deep-link); **still correct after a simulated reload** (fresh mount) at `/recipes`. There must always be exactly one search control.
+- **Avatar menu:** opens on click; "Profile" navigates to `/profile`; "Sign out" calls the injected `signOut`; identity line shows a skeleton while `GET /api/me` is pending and renders nothing (no error UI) on a 500.
+- **Settings menu:** opens on gear click; toggling dark / changing palette does **not** close it; outside click closes it; `Escape` closes it. Opening the avatar menu closes the settings popover and vice-versa (the `PopoverGroup` registry). Toggling dark sets `document.documentElement.dataset.theme`; palette sets `dataset.palette`; both write `localStorage['dtg.appearance']` (with `updatedAt`).
+- **Appearance provider:** mounts from a seeded `localStorage` value and applies both attributes to `<html>`; `prefers-color-scheme` drives the default when `mode` is `null` (mocked `matchMedia`); `remoteValue` prop, when newer, wins over the local copy.
 
 ### Workflow (Playwright, `e2e/tests/`)
 Extend the smoke spec (or add `shell.spec.ts`), reusing `loginAsTestUser`:
 - Existing `GET /api/health` check stays.
 - After bypass login, the shell renders (nav rail + top bar visible).
 - Click "Recipes" → URL is `/recipes`, the Recipes placeholder heading is visible.
-- Open settings → toggle Dark → `<html>` has `data-theme="dark"` → **reload** → still dark (localStorage persisted). Switch palette → `data-palette` updates.
-- Avatar menu → "Sign out" → back to the splash screen ("Log in" visible). *(Bypass note: `signOut()` clears AuthKit state; under the bypass cookie the app re-renders the gate. Confirm the cookie doesn't force an immediate re-auth loop — if it does, assert the button calls the SDK method instead, matching DAMN-1's smoke-test caveat.)*
+- Open settings → toggle Dark → `<html data-theme="dark">` **and** a visible computed-style assertion (e.g. body background matches the dark token — guards against the `.app` vs `:root` selector trap, review finding #6) → **reload** → still dark. Switch palette → `data-palette` updates.
+- Avatar menu opens and shows the "Sign out" button. **Sign-out is not exercised end-to-end here** (review finding #5): under the bypass cookie `signOut()` doesn't clear `e2e_bypass`, so `AuthGate` bounces straight back to the shell — a real assertion would fail deterministically, and it would fire a live `api.workos.com/logout` call the bypass design avoids. Sign-out → Splash is covered in the component tier instead (mock `signOut`, assert Splash renders for `!user` + no cookie).
 
 `pnpm verify` (all tiers + `pnpm e2e`) is the gate; CI `verify` is the backstop; `e2e-staging` runs the workflow tier against staging and gates the prod promote.
 
@@ -190,6 +235,21 @@ Extend the smoke spec (or add `shell.spec.ts`), reusing `loginAsTestUser`:
 - `prefers-reduced-motion` honoured for the popover animation.
 - Hit targets ≥44px (buttons, nav items, switch).
 
-## Adversarial design review
+## Adversarial design review (2026-09-10) — resolved
 
-_(Pending — fresh-context review against the frozen scope, the mockups, this doc, and the ADRs, per the feature workflow. Findings + resolutions recorded here.)_
+A fresh-context review against the frozen scope, the mockups, this doc, DAMN-1's design, and the ADRs. Twelve findings; all folded into this doc, none changed scope. Discussed with the owner, who approved the revisions wholesale.
+
+**Blocking (design bugs, now fixed above):**
+1. `/callback` would race AuthKit's code exchange under a data router → explicit inert `/callback` route + `onRedirectCallback` → `router.navigate` (see Routing).
+2. `AppShell` must be a nested *layout* route, not a per-route wrapper, or it remounts every navigation (flicker, lost scroll, `hasNavigated` reset) → route structure made explicit.
+3. The E2E bypass short-circuit must cover `/login` and `/callback`, now outside `AuthGate` → shared `auth/bypass.ts` guard on all three entry points; server env var stays sole authority.
+4. The `hasNavigated` pure-latch leaves *no* search control on a deep-link/reload to a sub-route → placement derived from `pathname !== '/' || hasNavigatedRef` + explicit tests.
+5. The e2e sign-out→Splash assertion fails deterministically under the bypass cookie (and fires a live WorkOS logout) → moved to the component tier; e2e only checks the button exists.
+
+**Should-fix (addressed above):**
+6. Token selector must be `:root[data-palette=…]` (attributes land on `<html>`), not the mockup's `.app[data-palette=…]` → called out in Design tokens + an e2e computed-style guard.
+7. Stored appearance shape gains `updatedAt` now (can't migrate later) + `AppearanceProvider` gains `remoteValue`/`onLocalChange` injection points for DAMN-14.
+8. Unspecified states pinned down: `GET /api/me` pending (skeleton) / error (silent) in the avatar menu; "one popover at a time" via a `PopoverGroup` registry, not three isolated hooks.
+9. Frozen issue said "Nunito throughout" — the ux-pass switched to Rubik with owner sign-off; issue text updated to match.
+
+**Minor (noted, mostly deferred):** inline-script CSP hash (DAMN-30); `matchMedia` mock in `vitest.setup.ts` (added to test plan); `mode: null` one-way door (accepted); deep-link destination lost post-auth (accepted); `react-router` uses `^` not an exact pin; `*` route sits outside `AuthGate` (a logged-out unknown path → Splash).
