@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-32 — two-font pairings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Figtree:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#FBF5EC; --card:#FFF; --tert:#F2E6D3; --text:#2A1D14; --text2:#6E5A47;
+    --text3:#A5927C; --border:#E7DAC6; --accent:#B34A24; --accent-muted:#F1DCC9;
+    --on-accent:#FFF; --radius:18px; --pill:999px;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#14100c; font-family:system-ui,sans-serif; }
+  .toc {
+    position:sticky; top:0; z-index:5; background:#0d1117; color:#c9d1d9;
+    padding:12px 24px; display:flex; gap:18px; align-items:baseline; flex-wrap:wrap;
+    font:13px/1.4 system-ui,sans-serif; border-bottom:1px solid #30363d;
+  }
+  .toc strong { color:#fff; } .toc a { color:#8ab4f8; text-decoration:none; }
+  .toc a:hover { text-decoration:underline; }
+
+  section { padding:40px 24px 8px; max-width:1400px; margin:0 auto; }
+  .head { color:#fff; margin:0 0 4px; font:600 20px/1.3 system-ui,sans-serif; }
+  .head span { color:#9aa4b2; font-weight:400; font-size:15px; }
+  .note { color:#7d8590; font:13px/1.5 system-ui,sans-serif; margin:0 0 18px; max-width:82ch; }
+  .note b { color:#adbac7; font-weight:600; }
+
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:1000px){ .cols{ grid-template-columns:1fr; } }
+  .card-s { background:var(--bg); color:var(--text); border-radius:var(--radius); padding:28px 30px; border:1px solid #2a2018; }
+  .card-s.dark {
+    --bg:#1C1410; --card:#241A14; --tert:#2E2119; --text:#F3E7DA; --text2:#C7B4A0;
+    --text3:#8C7663; --border:#3A2A1E; --accent:#E07A4A; --accent-muted:#3D2418; --on-accent:#1C1410;
+  }
+
+  /* the split: .disp = display font, everything else = text font (set per section) */
+  .wordmark { font-family:var(--disp); font-weight:var(--disp-w,700); font-size:32px; color:var(--accent); }
+  .recipe-title { font-family:var(--disp); font-weight:var(--disp-w,700); font-size:27px; margin:16px 0 4px; line-height:1.12; }
+  .tag-disp { font-size:11px; color:var(--text3); font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-family:system-ui,sans-serif; }
+
+  .meta { color:var(--text2); font-size:13.5px; font-weight:600; }
+  .section-h { font-weight:700; font-size:16px; margin:22px 0 8px; }
+  .ingredients { margin:0; padding-left:20px; font-size:15px; line-height:1.75; }
+  .method { font-size:15px; line-height:1.65; margin:0; max-width:54ch; }
+  .ui-row { display:flex; align-items:center; gap:14px; margin-top:22px; flex-wrap:wrap; }
+  .btn { font-family:inherit; font-weight:700; font-size:14px; border:none; background:var(--accent);
+    color:var(--on-accent); border-radius:var(--pill); padding:11px 20px; cursor:pointer; }
+  .nav-samp { font-weight:700; font-size:14px; color:var(--text2); }
+  .tag { font-weight:700; font-size:11px; background:var(--accent-muted); color:var(--accent); padding:4px 11px; border-radius:var(--pill); }
+</style>
+</head>
+<body>
+
+<header class="toc">
+  <strong>Two-font pairings — display for the name + titles, text for everything else</strong>
+  <a href="#p1">Baloo 2 + Nunito</a>
+  <a href="#p2">Quicksand + Figtree</a>
+  <a href="#p3">Fraunces + Nunito</a>
+</header>
+
+<!-- P1 -->
+<section id="p1" style="--disp:'Baloo 2',system-ui,sans-serif; --disp-w:700; font-family:'Nunito',system-ui,sans-serif;">
+  <h2 class="head">Baloo 2 <span>+ Nunito &nbsp;—&nbsp; closely related, warm</span></h2>
+  <p class="note">Both rounded; Baloo 2 is the <b>louder cousin</b> of Nunito. Lowest-risk pairing — they already look like family, so the split reads as emphasis rather than contrast. Chunky personality on the name and recipe titles; Nunito keeps lists and method calm.</p>
+  <div class="cols">
+    <div class="card-s">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <div class="tag-disp">display font · Baloo 2</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, then deglaze with the wine.</p>
+      <div class="ui-row"><button class="btn">Save recipe</button><span class="nav-samp">Recipes</span><span class="tag">weeknight</span></div>
+    </div>
+    <div class="card-s dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <div class="tag-disp">display font · Baloo 2</div>
+      <h3 class="recipe-title">Braised Short Ribs</h3>
+      <div class="meta">Serves 4 &middot; provenance: Nonna&rsquo;s card</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>4 lb bone-in short ribs</li>
+        <li>2 tbsp tomato paste</li>
+        <li>1 bottle dry red wine</li>
+        <li>2 cups beef stock</li>
+      </ul>
+      <p class="method" style="margin-top:16px;">Text font · Nunito — nav, buttons, body copy, captions, ingredient lists, method steps.</p>
+      <div class="ui-row"><button class="btn">Save recipe</button><span class="nav-samp">Recipes</span><span class="tag">braise</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- P2 -->
+<section id="p2" style="--disp:'Quicksand',system-ui,sans-serif; --disp-w:600; font-family:'Figtree',system-ui,sans-serif;">
+  <h2 class="head">Quicksand <span>+ Figtree &nbsp;—&nbsp; more contrast, more &ldquo;brand&rdquo;</span></h2>
+  <p class="note">Quicksand&rsquo;s round geometric name reads <b>distinctive and a little elegant</b>; Figtree keeps the working UI crisp and highly legible. The two are less alike, so the display font feels like a logo and the rest feels like a tool. Quicksand&rsquo;s weakness (light body text) never shows because it&rsquo;s display-only here.</p>
+  <div class="cols">
+    <div class="card-s">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <div class="tag-disp">display font · Quicksand</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, then deglaze with the wine.</p>
+      <div class="ui-row"><button class="btn">Save recipe</button><span class="nav-samp">Recipes</span><span class="tag">weeknight</span></div>
+    </div>
+    <div class="card-s dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <div class="tag-disp">display font · Quicksand</div>
+      <h3 class="recipe-title">Braised Short Ribs</h3>
+      <div class="meta">Serves 4 &middot; provenance: Nonna&rsquo;s card</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>4 lb bone-in short ribs</li>
+        <li>2 tbsp tomato paste</li>
+        <li>1 bottle dry red wine</li>
+        <li>2 cups beef stock</li>
+      </ul>
+      <p class="method" style="margin-top:16px;">Text font · Figtree — nav, buttons, body copy, captions, ingredient lists, method steps.</p>
+      <div class="ui-row"><button class="btn">Save recipe</button><span class="nav-samp">Recipes</span><span class="tag">braise</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- P3 -->
+<section id="p3" style="--disp:'Fraunces',Georgia,serif; --disp-w:600; font-family:'Nunito',system-ui,sans-serif;">
+  <h2 class="head">Fraunces <span>+ Nunito &nbsp;—&nbsp; a serif, but only for the name</span></h2>
+  <p class="note">Putting a soft, slightly quirky serif <b>only on the wordmark and recipe titles</b> is the classic cookbook / magazine-masthead move — it was the original &ldquo;warm and personal&rdquo; instinct. The earlier objection was &ldquo;serif for <i>everything</i>&rdquo;; this isn&rsquo;t that. All working text stays Nunito. Highest &ldquo;family recipe book&rdquo; signal of the three; also the biggest visual step from the current all-sans mockup.</p>
+  <div class="cols">
+    <div class="card-s">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <div class="tag-disp">display font · Fraunces (serif)</div>
+      <h3 class="recipe-title">Grandma&rsquo;s Sunday Pot Roast</h3>
+      <div class="meta">Serves 6 &middot; 3 hr &middot; from Mom&rsquo;s recipe box</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>3 lb beef chuck roast, patted dry</li>
+        <li>1 large yellow onion, sliced thin</li>
+        <li>4 medium carrots, in 2-inch pieces</li>
+        <li>1½ cups dry red wine</li>
+        <li>2 cups beef stock</li>
+        <li>2 sprigs fresh thyme</li>
+      </ul>
+      <h4 class="section-h">Method</h4>
+      <p class="method">Season the roast generously and sear on all sides in a hot Dutch oven until deeply browned. Set aside, soften the onion and carrots in the fat, then deglaze with the wine.</p>
+      <div class="ui-row"><button class="btn">Save recipe</button><span class="nav-samp">Recipes</span><span class="tag">weeknight</span></div>
+    </div>
+    <div class="card-s dark">
+      <div class="wordmark">Damn That&rsquo;s Good</div>
+      <div class="tag-disp">display font · Fraunces (serif)</div>
+      <h3 class="recipe-title">Braised Short Ribs</h3>
+      <div class="meta">Serves 4 &middot; provenance: Nonna&rsquo;s card</div>
+      <h4 class="section-h">Ingredients</h4>
+      <ul class="ingredients">
+        <li>4 lb bone-in short ribs</li>
+        <li>2 tbsp tomato paste</li>
+        <li>1 bottle dry red wine</li>
+        <li>2 cups beef stock</li>
+      </ul>
+      <p class="method" style="margin-top:16px;">Text font · Nunito — nav, buttons, body copy, captions, ingredient lists, method steps.</p>
+      <div class="ui-row"><button class="btn">Save recipe</button><span class="nav-samp">Recipes</span><span class="tag">braise</span></div>
+    </div>
+  </div>
+</section>
+
+<div style="height:60px"></div>
+</body>
+</html>
