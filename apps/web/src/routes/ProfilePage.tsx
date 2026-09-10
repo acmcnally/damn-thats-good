@@ -1,6 +1,8 @@
 /**
- * Profile — placeholder. The real view/edit page and avatar handling are a
- * later feature. The identity line reuses the shared `GET /api/me` fetch.
+ * Profile — placeholder. The identity line reuses the shared `GET /api/me` fetch.
+ *
+ * TODO: DAMN-14 — the real view/edit page.
+ * TODO: DAMN-24 — real avatar handling (photo storage).
  */
 
 import { useMe } from '../shell/MeProvider';

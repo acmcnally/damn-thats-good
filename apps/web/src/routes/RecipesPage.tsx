@@ -1,4 +1,4 @@
-/** Recipes — placeholder. The list, cards, and entry flow are a later feature. */
+/** TODO: DAMN-2 — placeholder page; the recipe list, cards, and entry flow replace it. */
 
 import styles from './pages.module.css';
 

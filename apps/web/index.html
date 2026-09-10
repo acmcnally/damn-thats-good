@@ -14,8 +14,8 @@
       The palette allow-list is duplicated in src/appearance/types.ts (PALETTES);
       keep the two in sync — a pre-module inline script cannot import.
 
-      CSP: this inline script forecloses a nonce-free strict CSP. When a strict
-      CSP lands (ADR-0004), ship its sha256 hash in script-src.
+      CSP: this inline script forecloses a nonce-free strict CSP.
+      TODO: DAMN-30 — ship this script's sha256 hash in script-src (ADR-0004).
     -->
     <script>
       // Always leave <html> with a valid data-palette, even if anything below

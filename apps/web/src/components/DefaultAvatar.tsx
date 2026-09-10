@@ -1,7 +1,8 @@
 /**
- * Inline SVG person mark in `currentColor`. Static: the only avatar there is
- * until user photo storage lands. Decorative — the surrounding control carries
- * the accessible name.
+ * Inline SVG person mark in `currentColor`. Decorative — the surrounding control
+ * carries the accessible name.
+ *
+ * TODO: DAMN-24 — the only avatar there is until user photo storage lands.
  */
 
 import type { SVGProps } from 'react';

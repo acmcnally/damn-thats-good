@@ -75,9 +75,11 @@ export function resolveEffectiveMode(mode: ColorMode, systemPrefersDark: boolean
 }
 
 /**
- * Pick the newer of a local and a remote preference by `updatedAt` — the seam
- * for a future login reconcile of a server value against the local copy. A tie
- * keeps `remote` (the server is canonical when nothing distinguishes them).
+ * Pick the newer of a local and a remote preference by `updatedAt`. A tie keeps
+ * `remote` (the server is canonical when nothing distinguishes them).
+ *
+ * TODO: DAMN-14 — the seam for the login reconcile of a server value against
+ * the local copy; unused until then.
  */
 export function mergePref(local: AppearancePref, remote: AppearancePref): AppearancePref {
   return remote.updatedAt >= local.updatedAt ? remote : local;

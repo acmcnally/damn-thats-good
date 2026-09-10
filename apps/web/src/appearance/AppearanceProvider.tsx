@@ -4,8 +4,8 @@
  * `data-palette` / `data-theme` on <html>, persists to localStorage, and tracks
  * the OS `prefers-color-scheme` while `mode` is `null` (follow system).
  *
- * Cross-device sync is a later feature; `remoteValue` (a server-synced pref) and
- * `onLocalChange` are its injection points — unused today, wired so that work
+ * TODO: DAMN-14 — cross-device sync. `remoteValue` (a server-synced pref) and
+ * `onLocalChange` are its injection points, unused today; wired now so DAMN-14
  * needn't rewrite the provider.
  */
 
@@ -46,15 +46,14 @@ function systemPrefersDark(): boolean {
 interface AppearanceProviderProps {
   children: ReactNode;
   /**
-   * A server-synced preference (cross-device sync, a later feature). Read once
-   * at mount; when newer than the local copy it wins the initial render. That
-   * later work owns the rest of the contract — reacting to an async-arriving
-   * value, and deciding whether/how a remote win is written back to localStorage
-   * (this component does not persist it, to avoid restamping the server's
-   * `updatedAt`).
+   * TODO: DAMN-14 — a server-synced preference. Read once at mount; when newer
+   * than the local copy it wins the initial render. DAMN-14 owns the rest of the
+   * contract: reacting to an async-arriving value, and deciding whether/how a
+   * remote win is written back to localStorage (this component does not persist
+   * it, to avoid restamping the server's `updatedAt`).
    */
   remoteValue?: AppearancePref;
-  /** Called with the full pref (incl. fresh `updatedAt`) after a real local edit only. */
+  /** TODO: DAMN-14 — called with the full pref (incl. fresh `updatedAt`) after a real local edit. */
   onLocalChange?: (pref: AppearancePref) => void;
 }
 

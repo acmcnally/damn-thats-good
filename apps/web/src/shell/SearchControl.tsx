@@ -1,7 +1,8 @@
 /**
- * SearchControl — inert; search behaviour (ranking, matching) is a later
- * feature. Two variants: `hero` (centered on `/`) and `bar` (in the top bar
- * everywhere else).
+ * SearchControl — two variants: `hero` (centered on `/`) and `bar` (in the top
+ * bar everywhere else).
+ *
+ * TODO: DAMN-6 — inert placeholder; ranking / matching / results land there.
  */
 
 import { SearchIcon } from '../components/icons';
@@ -21,7 +22,7 @@ export function SearchControl({ variant }: SearchControlProps) {
         placeholder="Search recipes"
         aria-label="Search recipes"
         // Inert — no handler, no results. Kept enabled so it reads as a real
-        // affordance; the search feature wires it up later.
+        // affordance. TODO: DAMN-6.
       />
     </div>
   );

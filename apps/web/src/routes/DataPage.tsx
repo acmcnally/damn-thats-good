@@ -1,7 +1,10 @@
 /**
  * Data — placeholder. Reference data for the whole book (ingredients, units)
- * plus a bulk-export entry point. The management UI is a follow-on once the
- * recipe schema lands; export wires up with the import/export feature (V4).
+ * plus a bulk-export entry point.
+ *
+ * TODO: DAMN-2 — the ingredients / units management UI is a follow-on once the
+ * recipe schema lands.
+ * TODO: DAMN-23 — wire the export button (V4).
  */
 
 import { DownloadIcon } from '../components/icons';

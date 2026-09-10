@@ -1,4 +1,4 @@
-/** Shopping Lists — route reserved now; the feature itself is a later (V2) story. */
+/** TODO: DAMN-11 — "Coming soon" placeholder; the route is reserved now, the feature is V2. */
 
 import styles from './pages.module.css';
 
