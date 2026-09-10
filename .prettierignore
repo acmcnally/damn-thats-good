@@ -11,5 +11,4 @@ pnpm-lock.yaml
 
 # Design mockups — throwaway artifacts from the ux-ui design workflow
 # (single-file HTML + captured PNGs), not hand-formatted source.
-.mockups/
 docs/features/**/mockups/
