@@ -8,4 +8,4 @@
 export type { Database, DbHandle, Schema } from './client';
 export { createDb } from './client';
 export * as schema from './schema';
-export { appMeta } from './schema';
+export { users } from './schema';

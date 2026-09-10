@@ -136,6 +136,12 @@ function main(): number {
   const keepStack = keep !== undefined && keep !== '' && keep !== '0' && keep !== 'false';
   const weStarted = state === 'absent';
 
+  // DAMN-1 E2E auth bypass — only ever set here, for the local stack `dcRun` spawns
+  // below (it inherits process.env). Never set for `staging`/`skip` mode, and never on
+  // a real deploy (deploy/compose.yaml's own opt-in is separate — set by hand, staging
+  // only, per the DAMN-1 runbook).
+  process.env.E2E_AUTH_BYPASS = '1';
+
   try {
     if (weStarted) {
       console.log('[e2e] no stack running — building images (first run is slow) and starting…');
@@ -148,6 +154,12 @@ function main(): number {
       dcRun(['up', '-d', '--wait', '--wait-timeout', '180', '--no-deps', 'api', 'web']);
     } else {
       console.log('[e2e] reusing the running stack.');
+      // A stack left healthy by a plain `docker compose up` (no bypass) would
+      // otherwise be reused as-is, silently missing E2E_AUTH_BYPASS=1 — every request
+      // would then just 401, an unrelated-looking failure. `up` only recreates a
+      // container whose config actually changed, so this is a fast no-op when the
+      // stack was already started with the bypass (e.g. a previous `pnpm e2e`).
+      dcRun(['up', '-d', '--wait', '--wait-timeout', '60', '--no-deps', 'api']);
     }
   } catch (err) {
     if (weStarted) {
