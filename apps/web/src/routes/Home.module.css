@@ -1,0 +1,17 @@
+.hero {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-5);
+  padding-bottom: 8vh;
+}
+
+.wordmark {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.005em;
+  color: var(--color-brand);
+}

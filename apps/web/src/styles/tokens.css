@@ -1,0 +1,202 @@
+/*
+ * Design tokens — DAMN-32.
+ *
+ * Two layers:
+ *   1. Structural tokens on bare :root — palette-neutral (type, space, radius,
+ *      elevation, motion). Never change with the theme.
+ *   2. Color tokens scoped by :root[data-palette] and, for dark, by
+ *      :root[data-palette][data-theme="dark"]. The FOUC script in index.html and
+ *      AppearanceProvider both write data-palette / data-theme on <html>
+ *      (document.documentElement) — so the selector MUST be :root[...], not a
+ *      class. Components only ever read var(--color-*) by role.
+ *
+ * Concrete hex values + WCAG-AA contrast results:
+ *   docs/features/DAMN-32-ux-framework-app-shell-navigation/mockups/palette-typography.html
+ * The mockup (app-shell.html) scopes these to .app[data-palette] — that is a
+ * framing artifact of the review page; do not copy it.
+ */
+
+:root {
+  /* ---- type ------------------------------------------------------------ */
+  /* One family, everything. 'Rubik Variable' is the @font-face name from
+     @fontsource-variable/rubik (see base.css). */
+  --font-sans: 'Rubik Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Locked scale (technical-design.md). 12px hard floor — nothing smaller.
+       xs   12 / 600  badges, all-caps eyebrows, counters
+       sm   13 / 500  metadata & captions
+       md   14 / 500  nav & buttons
+       base 15 / 400  reading text (ingredients, method)
+     lg/xl/2xl/3xl    headings & wordmark */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-loose: 1.65;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* All-caps eyebrows / badges get extra tracking. */
+  --tracking-caps: 0.04em;
+
+  /* ---- space (8pt) --------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ---- radius — the rounded / pill character ------------------------- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+
+  /* ---- elevation ---------------------------------------------------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.09);
+  --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.14);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.14);
+
+  /* ---- motion ----------------------------------------------------- */
+  /* --dur-quick is the ceiling for menu/popover open (technical-design.md). */
+  --dur-quick: 130ms;
+  --dur-base: 180ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- layout ---------------------------------------------------- */
+  --rail-width: 232px;
+  --topbar-height: 60px;
+}
+
+/* ===================================================================== */
+/* Terracotta — default                                                  */
+/* ===================================================================== */
+:root[data-palette='terracotta'] {
+  --color-bg-primary: #fbf5ec;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #f2e6d3;
+  --color-text-primary: #2a1d14;
+  --color-text-secondary: #6e5a47;
+  --color-text-tertiary: #a5927c;
+  --color-text-inverse: #fbf5ec;
+  --color-border: #e7dac6;
+  --color-border-strong: #d8c4a8;
+  --color-brand: #b34a24;
+  --color-accent: #b34a24;
+  --color-accent-hover: #963b1b;
+  --color-accent-muted: #f1dcc9;
+  --color-text-on-accent: #ffffff;
+  --color-focus: #b34a24;
+  --color-danger: #b23b3b;
+}
+:root[data-palette='terracotta'][data-theme='dark'] {
+  --color-bg-primary: #1c1410;
+  --color-bg-secondary: #241a14;
+  --color-bg-tertiary: #2e2119;
+  --color-text-primary: #f3e7da;
+  --color-text-secondary: #c7b4a0;
+  --color-text-tertiary: #8c7663;
+  --color-text-inverse: #1c1410;
+  --color-border: #3a2a1e;
+  --color-border-strong: #4c3826;
+  --color-brand: #b34a24;
+  --color-accent: #e07a4a;
+  --color-accent-hover: #ee8c5e;
+  --color-accent-muted: #3d2418;
+  --color-text-on-accent: #1c1410;
+  --color-focus: #e07a4a;
+  --color-danger: #e06c6c;
+}
+
+/* ===================================================================== */
+/* Sage                                                                  */
+/* ===================================================================== */
+:root[data-palette='sage'] {
+  --color-bg-primary: #faf8f2;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #efeadb;
+  --color-text-primary: #2c2a1e;
+  --color-text-secondary: #5f5c48;
+  --color-text-tertiary: #9c9782;
+  --color-text-inverse: #faf8f2;
+  --color-border: #e4dfc9;
+  --color-border-strong: #d2ccb0;
+  --color-brand: #5b7554;
+  --color-accent: #5b7554;
+  --color-accent-hover: #4a6144;
+  --color-accent-muted: #dce6d5;
+  --color-text-on-accent: #ffffff;
+  --color-focus: #5b7554;
+  --color-danger: #a6443b;
+}
+:root[data-palette='sage'][data-theme='dark'] {
+  --color-bg-primary: #171a14;
+  --color-bg-secondary: #1e221a;
+  --color-bg-tertiary: #262b20;
+  --color-text-primary: #eeebdd;
+  --color-text-secondary: #c1bca0;
+  --color-text-tertiary: #8a876e;
+  --color-text-inverse: #171a14;
+  --color-border: #313629;
+  --color-border-strong: #434a38;
+  --color-brand: #5b7554;
+  --color-accent: #8fae83;
+  --color-accent-hover: #a3c096;
+  --color-accent-muted: #2c3524;
+  --color-text-on-accent: #171a14;
+  --color-focus: #8fae83;
+  --color-danger: #de8078;
+}
+
+/* ===================================================================== */
+/* Plum                                                                  */
+/* ===================================================================== */
+:root[data-palette='plum'] {
+  --color-bg-primary: #faf6f3;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #f0e4de;
+  --color-text-primary: #2a1420;
+  --color-text-secondary: #6b4a5c;
+  --color-text-tertiary: #9e8090;
+  --color-text-inverse: #faf6f3;
+  --color-border: #e8dbe0;
+  --color-border-strong: #d9c4ce;
+  --color-brand: #b86fa0;
+  --color-accent: #6e2a52;
+  --color-accent-hover: #571f40;
+  --color-accent-muted: #e8d3df;
+  --color-text-on-accent: #ffffff;
+  --color-focus: #6e2a52;
+  --color-danger: #b23b3b;
+}
+:root[data-palette='plum'][data-theme='dark'] {
+  --color-bg-primary: #1a0f16;
+  --color-bg-secondary: #231620;
+  --color-bg-tertiary: #2d1c29;
+  --color-text-primary: #f2e6ed;
+  --color-text-secondary: #c7a8bc;
+  --color-text-tertiary: #937b8a;
+  --color-text-inverse: #1a0f16;
+  --color-border: #37232f;
+  --color-border-strong: #492f40;
+  --color-brand: #b86fa0;
+  --color-accent: #b86fa0;
+  --color-accent-hover: #c989b2;
+  --color-accent-muted: #3a2434;
+  --color-text-on-accent: #1a0f16;
+  --color-focus: #b86fa0;
+  --color-danger: #e06c6c;
+}

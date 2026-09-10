@@ -1,9 +1,14 @@
+import './styles/tokens.css';
+import './styles/base.css';
+
 import type { ConfigResponse } from '@dtg/shared';
 import { AuthKitProvider } from '@workos-inc/authkit-react';
-import { StrictMode } from 'react';
+import { type ReactNode, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RouterProvider } from 'react-router/dom';
 
-import { App } from './App';
+import { AppearanceProvider } from './appearance/AppearanceProvider';
+import { router } from './router';
 
 const container = document.getElementById('root');
 if (!container) {
@@ -11,24 +16,45 @@ if (!container) {
 }
 const root = createRoot(container);
 
-const LOADING = (
-  <StrictMode>
-    <main style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem' }}>
-      <p>Loading…</p>
-    </main>
-  </StrictMode>
-);
-// Render immediately, synchronously — first paint shouldn't wait on the network. Only
-// AuthKitProvider (needing config.workosClientId below) does.
-root.render(LOADING);
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <StrictMode>
+      <div style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem' }}>{children}</div>
+    </StrictMode>
+  );
+}
+
+// First paint shouldn't wait on the network. Only AuthKitProvider (which needs
+// config.workosClientId) does.
+root.render(<Shell>Loading…</Shell>);
 
 /**
- * `GET /api/config` before `AuthKitProvider` mounts — it needs the WorkOS Client ID,
- * and that has to come from a runtime source (not a Vite build-time env var): the same
- * built image is promoted from staging to prod unchanged, so anything baked in at
- * build time would carry staging's value into prod. `redirectUri` needs no fetch at
- * all — `window.location.origin` is already correct in every environment, since it's
- * derived from wherever the code is actually executing.
+ * `state` round-trips through the OAuth redirect as untrusted URL input (the SDK
+ * cannot validate it). DAMN-32 never sets `state.returnTo`, so this resolves to
+ * `/` in practice — the origin check is defensive, and the seam for a later
+ * deep-link-preserving flow.
+ */
+function handleRedirectCallback({ state }: { state?: Record<string, unknown> | null }): void {
+  let target = '/';
+  const returnTo = state && typeof state.returnTo === 'string' ? state.returnTo : null;
+  if (returnTo) {
+    try {
+      const url = new URL(returnTo, window.location.origin);
+      if (url.origin === window.location.origin) {
+        target = url.pathname + url.search + url.hash;
+      }
+    } catch {
+      // malformed — fall through to '/'
+    }
+  }
+  void router.navigate(target, { replace: true });
+}
+
+/**
+ * `GET /api/config` before `AuthKitProvider` mounts — it needs the WorkOS Client
+ * ID from a runtime source (not a Vite build-time env var): the same built image
+ * is promoted staging → prod unchanged. `redirectUri` needs no fetch —
+ * `window.location.origin` is already correct wherever the code runs.
  */
 async function bootstrap(): Promise<void> {
   const res = await fetch('/api/config');
@@ -39,12 +65,15 @@ async function bootstrap(): Promise<void> {
 
   root.render(
     <StrictMode>
-      <AuthKitProvider
-        clientId={config.workosClientId}
-        redirectUri={`${window.location.origin}/callback`}
-      >
-        <App />
-      </AuthKitProvider>
+      <AppearanceProvider>
+        <AuthKitProvider
+          clientId={config.workosClientId}
+          redirectUri={`${window.location.origin}/callback`}
+          onRedirectCallback={handleRedirectCallback}
+        >
+          <RouterProvider router={router} />
+        </AuthKitProvider>
+      </AppearanceProvider>
     </StrictMode>,
   );
 }
@@ -52,10 +81,8 @@ async function bootstrap(): Promise<void> {
 bootstrap().catch((error: unknown) => {
   console.error('bootstrap: failed to reach the API', error);
   root.render(
-    <StrictMode>
-      <main style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem' }}>
-        <p role="alert">Couldn&apos;t reach the API — try reloading.</p>
-      </main>
-    </StrictMode>,
+    <Shell>
+      <p role="alert">Couldn&apos;t reach the API — try reloading.</p>
+    </Shell>,
   );
 });
