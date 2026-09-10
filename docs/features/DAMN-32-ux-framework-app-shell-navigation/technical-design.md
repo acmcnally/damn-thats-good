@@ -47,7 +47,7 @@ Settled direction:
 
 | Package | Why | Notes |
 |---|---|---|
-| `react-router` (v7.x, `^` range to match the repo's `react`/`react-dom` convention) | Client-side routing | v7 is the current line; `createBrowserRouter` + `<RouterProvider>` API (see Routing). One dep — `react-router-dom` merged into `react-router` in v7. |
+| `react-router` (`^8` — current stable is 8.3.1; `^` range like the repo's `react`/`react-dom`) | Client-side routing | v8 peer deps (`react >=19.2.7`, `node >=22.22`) are satisfied (project: react 19.3, Node ≥24). **Data Mode** — `createBrowserRouter` + `<RouterProvider>` from `react-router/dom` (see Routing) — is still first-class in v8; we deliberately do **not** use v8's promoted Framework Mode (file-based routes + SSR machinery a static-served SPA doesn't need). One dep — `react-router-dom` was folded into `react-router`. v7→v8 breaking changes (`data`→`loaderData`, Cloudflare dev-proxy, Framework-Mode request handling) don't touch anything here. |
 | `@fontsource-variable/rubik` (or `@fontsource/rubik` weights 400/500/600/700) | Self-hosted Rubik | Bundled, no runtime request to Google Fonts — fits ADR-0004's "no avoidable external runtime deps" and keeps the self-hosted app private. Imported once in `styles/base.css`. Latin subset only. |
 
 No other additions. Icons are hand-inlined SVG (a small `components/icons.tsx` set) — no icon library.
@@ -69,7 +69,7 @@ This issue sets the pattern for the whole frontend. Owner-approved 2026-09-10.
 
 ## Routing
 
-`react-router` v7, `createBrowserRouter` + `<RouterProvider>` (route config as data, not JSX `<Routes>` — cleaner separation and the forward-looking API for when DAMN-2+ wants loaders).
+`react-router` v8 (Data Mode): `createBrowserRouter` + `<RouterProvider>` (from `react-router/dom`), route config as data — not JSX `<Routes>`, and not v8's file-based Framework Mode. Clean config/render separation, and the forward-looking API for when DAMN-2+ wants loaders.
 
 ### Structure — nested layout routes (not per-route wrappers)
 
@@ -158,7 +158,7 @@ Menu/popover open uses a ≤150ms scale+fade (`--dur-quick` ceiling per ADR-0012
 
 | File | Role |
 |---|---|
-| `main.tsx` | Keep DAMN-1's `GET /api/config` bootstrap, then mount `<RouterProvider>` inside `AuthKitProvider` + `AppearanceProvider`. `onRedirectCallback` on `AuthKitProvider` calls `router.navigate`. |
+| `main.tsx` | Keep DAMN-1's `GET /api/config` bootstrap, then mount `<RouterProvider>` (from `react-router/dom`) inside `AuthKitProvider` + `AppearanceProvider`. `onRedirectCallback` on `AuthKitProvider` calls `router.navigate`. |
 | `router.tsx` | Exports `routes` (the config array) **and** `router = createBrowserRouter(routes)` separately — tests import `routes` for `createMemoryRouter`. |
 | `auth/AuthGate.tsx` | Layout route — auth gate logic from `App.tsx`: bypass cookie first → `<Outlet/>`; then `isLoading` → loader; `!user` on `/` → `<Splash>`; `!user` elsewhere → `signIn()`; else `<Outlet/>`. |
 | `auth/bypass.ts` | `hasE2eBypassCookie()` (moved from `e2eBypass.ts`, or re-exported) + `<BypassRedirect/>`. Used by `AuthGate`, `LoginRedirect`, `AuthCallback`. |
@@ -252,4 +252,4 @@ A fresh-context review against the frozen scope, the mockups, this doc, DAMN-1's
 8. Unspecified states pinned down: `GET /api/me` pending (skeleton) / error (silent) in the avatar menu; "one popover at a time" via a `PopoverGroup` registry, not three isolated hooks.
 9. Frozen issue said "Nunito throughout" — the ux-pass switched to Rubik with owner sign-off; issue text updated to match.
 
-**Minor (noted, mostly deferred):** inline-script CSP hash (DAMN-30); `matchMedia` mock in `vitest.setup.ts` (added to test plan); `mode: null` one-way door (accepted); deep-link destination lost post-auth (accepted); `react-router` uses `^` not an exact pin; `*` route sits outside `AuthGate` (a logged-out unknown path → Splash).
+**Minor (noted, mostly deferred):** inline-script CSP hash (DAMN-30); `matchMedia` mock in `vitest.setup.ts` (added to test plan); `mode: null` one-way door (accepted); deep-link destination lost post-auth (accepted); `react-router` `^8` (current stable; owner-checked 2026-09-10) not an exact pin; `*` route sits outside `AuthGate` (a logged-out unknown path → Splash).
