@@ -268,3 +268,16 @@ The routing/auth section was substantially rewritten in response to review 1; re
 - Minor: collapsed a redundant test bullet (deep-link vs reload at `/recipes` are one test in jsdom); test-side `RouterProvider` is the `react-router/dom` one; `apiClient.ts`'s `window.location.assign('/login')` documented as a deliberate full-reload.
 
 **Owner UX decision (2026-09-10):** returning to `/` after navigating restores the centered hero search (not "stays in the top bar"). Note: V1 has no in-app path back to `/`, so this only bites if a home affordance is added later — the route-derived rule handles it for free.
+
+## Implementation notes (2026-09-10, as-built)
+
+Deviations from the plan above, all minor:
+
+- **`--font-sans` family name is `'Rubik Variable'`**, not `'Rubik'` — that is the `@font-face` name `@fontsource-variable/rubik` uses. The font is bundled as a single hand-written `@font-face` in `styles/base.css` pointing at the package's `files/rubik-latin-wght-normal.woff2` (latin subset only, ~35 KB); the package ships subset `.woff2` files but no latin-only stylesheet, so importing its `index.css` would have referenced every script's file. `@fontsource-variable/rubik ^5` (5.3.0, checked 2026-09-10).
+- **The Light/Dark switch's flanking labels are `<button>`s**, not `<label>`s — a `<label>` can't associate with a `role="switch"` button the way it does with a form control, and buttons calling `setMode('light'|'dark')` are the cleaner equivalent. The switch itself is `role="switch"` + `aria-checked` as specified.
+- **`AppearanceProvider` persists only when `pref` diverges from the stored value** (compares on each change) rather than using a first-render guard — this also absorbs a StrictMode remount without spuriously bumping `updatedAt`.
+- **`AppShell` forwards the shell context** (`{ signOut, getAccessToken }`) from `AuthGate` down through a second `<Outlet context>` so routed pages (`ProfilePage`) can read it via `useShellContext()`.
+- **`react-router` `8.3.1`** installed (`^8`), peer deps satisfied (react 19.3, node ≥24).
+- Component tests share `src/test/renderRoute.tsx` (builds `createMemoryRouter` over the real route config inside `AppearanceProvider`).
+- Screenshots of the built app (Docker Compose stack, bypass cookie): `mockups/shots/implementation/`.
+- **Responsive:** the shell stacks (top bar → nav → content) below 640px but is tuned for desktop — the mockup was desktop-only and real responsive polish belongs with the feature pages (DAMN-2+).
