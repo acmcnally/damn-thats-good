@@ -7,10 +7,11 @@ import { App } from './App';
 
 const signIn = vi.fn();
 const signOut = vi.fn();
+const getAccessToken = vi.fn().mockResolvedValue('test-token');
 let mockAuth: { isLoading: boolean; user: object | null };
 
 vi.mock('@workos-inc/authkit-react', () => ({
-  useAuth: () => ({ ...mockAuth, signIn, signOut }),
+  useAuth: () => ({ ...mockAuth, signIn, signOut, getAccessToken }),
 }));
 
 const server = setupServer();

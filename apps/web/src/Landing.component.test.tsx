@@ -23,7 +23,7 @@ describe('<Landing>', () => {
       http.get('/api/me', () => HttpResponse.json({ id: 'u1', email: 'andrew@example.com' })),
     );
 
-    render(<Landing onSignOut={vi.fn()} />);
+    render(<Landing onSignOut={vi.fn()} getAccessToken={vi.fn().mockResolvedValue('tok')} />);
 
     expect(await screen.findByText('andrew@example.com')).toBeInTheDocument();
   });
@@ -31,7 +31,7 @@ describe('<Landing>', () => {
   it('shows the error state when the API call fails', async () => {
     server.use(http.get('/api/me', () => new HttpResponse(null, { status: 500 })));
 
-    render(<Landing onSignOut={vi.fn()} />);
+    render(<Landing onSignOut={vi.fn()} getAccessToken={vi.fn().mockResolvedValue('tok')} />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t reach the api/i);
   });
@@ -40,10 +40,25 @@ describe('<Landing>', () => {
     server.use(http.get('/api/me', () => HttpResponse.json({ id: 'u1', email: 'a@b.com' })));
     const onSignOut = vi.fn();
 
-    render(<Landing onSignOut={onSignOut} />);
+    render(<Landing onSignOut={onSignOut} getAccessToken={vi.fn().mockResolvedValue('tok')} />);
     fireEvent.click(await screen.findByRole('button', { name: /sign out/i }));
 
     expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
+  it('sends the AuthKit access token as a Bearer header on GET /api/me', async () => {
+    let authorization: string | null = null;
+    server.use(
+      http.get('/api/me', ({ request }) => {
+        authorization = request.headers.get('authorization');
+        return HttpResponse.json({ id: 'u1', email: 'a@b.com' });
+      }),
+    );
+
+    render(<Landing onSignOut={vi.fn()} getAccessToken={vi.fn().mockResolvedValue('the-token')} />);
+
+    await screen.findByText('a@b.com');
+    expect(authorization).toBe('Bearer the-token');
   });
 
   // The apiFetch wrapper's 401 → navigate-to-/login behaviour isn't exercised here

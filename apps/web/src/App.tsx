@@ -34,11 +34,16 @@ function SignInRedirect() {
  * the server independently enforces the real invariant on every `/api/*` call
  * regardless (see technical-design.md).
  */
+/** No real WorkOS session exists under the E2E bypass, so the real `getAccessToken`
+ * would reject — the server-side bypass ignores the header entirely (see
+ * `jwt-auth.guard.ts`), so any value here is fine. */
+const NO_ACCESS_TOKEN = () => Promise.resolve('');
+
 export function App() {
-  const { isLoading, user, signOut } = useAuth();
+  const { isLoading, user, signOut, getAccessToken } = useAuth();
 
   if (hasE2eBypassCookie()) {
-    return <Landing onSignOut={signOut} />;
+    return <Landing onSignOut={signOut} getAccessToken={NO_ACCESS_TOKEN} />;
   }
 
   if (window.location.pathname === '/login') {
@@ -53,5 +58,5 @@ export function App() {
     return <SignInRedirect />;
   }
 
-  return <Landing onSignOut={signOut} />;
+  return <Landing onSignOut={signOut} getAccessToken={getAccessToken} />;
 }

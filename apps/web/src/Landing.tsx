@@ -6,8 +6,11 @@ import { apiFetch } from './apiClient';
 type Fetch =
   { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; data: MeResponse };
 
-async function fetchMe(signal: AbortSignal): Promise<MeResponse> {
-  const res = await apiFetch('/api/me', { signal });
+async function fetchMe(
+  getAccessToken: () => Promise<string>,
+  signal: AbortSignal,
+): Promise<MeResponse> {
+  const res = await apiFetch('/api/me', getAccessToken, { signal });
   if (!res.ok) {
     throw new Error(`API responded ${res.status}`);
   }
@@ -15,9 +18,10 @@ async function fetchMe(signal: AbortSignal): Promise<MeResponse> {
 }
 
 interface LandingProps {
-  /** Not read from `useAuth()` directly so this stays testable without an
-   * `AuthKitProvider` — the caller (`App`) wires it from the hook. */
+  /** Neither read from `useAuth()` directly so this stays testable without an
+   * `AuthKitProvider` — the caller (`App`) wires both from the hook. */
   onSignOut: () => void;
+  getAccessToken: () => Promise<string>;
 }
 
 /**
@@ -26,12 +30,12 @@ interface LandingProps {
  * succeeds behind the guard, so rendering the email here confirms the whole chain
  * (AuthKit → JWT → guard → JIT-provisioned `users` row) actually worked.
  */
-export function Landing({ onSignOut }: LandingProps) {
+export function Landing({ onSignOut, getAccessToken }: LandingProps) {
   const [state, setState] = useState<Fetch>({ status: 'loading' });
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchMe(controller.signal)
+    fetchMe(getAccessToken, controller.signal)
       .then((data) => setState({ status: 'ok', data }))
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -41,7 +45,7 @@ export function Landing({ onSignOut }: LandingProps) {
         });
       });
     return () => controller.abort();
-  }, []);
+  }, [getAccessToken]);
 
   return (
     <main style={{ maxWidth: '32rem', margin: '4rem auto', padding: '0 1rem', lineHeight: 1.5 }}>
