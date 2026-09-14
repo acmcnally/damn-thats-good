@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-32 — app shell &amp; navigation walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     CHROME (not part of the design — the review strip + frame)
+     ============================================================ */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #0d1117; font-family: 'Nunito', system-ui, sans-serif; }
+  .mock-meta {
+    padding: 8px 16px; background: #0d1117; color: #c9d1d9;
+    display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap;
+    font: 13px/1.4 system-ui, sans-serif; border-bottom: 1px solid #30363d;
+  }
+  .mock-meta strong { font-weight: 600; }
+  .mock-meta span { color: #8b949e; }
+  .mock-meta button {
+    font: 12px/1 system-ui, sans-serif; background: #21262d; color: #c9d1d9;
+    border: 1px solid #30363d; border-radius: 6px; padding: 5px 10px; cursor: pointer;
+  }
+  .mock-meta button:hover { background: #30363d; }
+  .frame-wrap { padding: 20px; display: flex; justify-content: center; }
+
+  /* ============================================================
+     DESIGN TOKENS  —  draft for tokens.css
+     structural tokens: palette-neutral, on .app
+     color tokens: scoped by [data-palette] (light) + [data-theme="dark"]
+     ============================================================ */
+  .app {
+    /* type */
+    --font-sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --text-xs: 12px; --text-sm: 13.5px; --text-base: 15.5px; --text-lg: 18px;
+    --text-xl: 22px; --text-2xl: 28px; --text-3xl: 34px;
+    --leading-tight: 1.2; --leading-normal: 1.5; --leading-loose: 1.65;
+    --weight-regular: 400; --weight-semibold: 600; --weight-bold: 700; --weight-heavy: 800;
+    /* space (8pt) */
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+    /* radius — the rounded/pill character */
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 18px; --radius-full: 999px;
+    /* elevation */
+    --shadow-1: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.09);
+    --shadow-2: 0 6px 24px rgba(0,0,0,.14);
+  }
+
+  /* ---- TERRACOTTA & CREAM (default) ---- */
+  .app[data-palette="terracotta"] {
+    --color-bg-primary:#FBF5EC; --color-bg-secondary:#FFFFFF; --color-bg-tertiary:#F2E6D3;
+    --color-text-primary:#2A1D14; --color-text-secondary:#6E5A47; --color-text-tertiary:#A5927C;
+    --color-text-inverse:#FBF5EC;
+    --color-border:#E7DAC6; --color-border-strong:#D8C4A8;
+    --color-brand:#B34A24;
+    --color-accent:#B34A24; --color-accent-hover:#963B1B; --color-accent-muted:#F1DCC9;
+    --color-text-on-accent:#FFFFFF; --color-focus:#B34A24;
+    --color-danger:#B23B3B;
+  }
+  .app[data-palette="terracotta"][data-theme="dark"] {
+    --color-bg-primary:#1C1410; --color-bg-secondary:#241A14; --color-bg-tertiary:#2E2119;
+    --color-text-primary:#F3E7DA; --color-text-secondary:#C7B4A0; --color-text-tertiary:#8C7663;
+    --color-text-inverse:#1C1410;
+    --color-border:#3A2A1E; --color-border-strong:#4C3826;
+    --color-brand:#B34A24;
+    --color-accent:#E07A4A; --color-accent-hover:#EE8C5E; --color-accent-muted:#3D2418;
+    --color-text-on-accent:#1C1410; --color-focus:#E07A4A;
+    --color-danger:#E06C6C;
+  }
+
+  /* ---- SAGE & BUTTER ---- */
+  .app[data-palette="sage"] {
+    --color-bg-primary:#FAF8F2; --color-bg-secondary:#FFFFFF; --color-bg-tertiary:#EFEADB;
+    --color-text-primary:#2C2A1E; --color-text-secondary:#5F5C48; --color-text-tertiary:#9C9782;
+    --color-text-inverse:#FAF8F2;
+    --color-border:#E4DFC9; --color-border-strong:#D2CCB0;
+    --color-brand:#5B7554;
+    --color-accent:#5B7554; --color-accent-hover:#4A6144; --color-accent-muted:#DCE6D5;
+    --color-text-on-accent:#FFFFFF; --color-focus:#5B7554;
+    --color-danger:#A6443B;
+  }
+  .app[data-palette="sage"][data-theme="dark"] {
+    --color-bg-primary:#171A14; --color-bg-secondary:#1E221A; --color-bg-tertiary:#262B20;
+    --color-text-primary:#EEEBDD; --color-text-secondary:#C1BCA0; --color-text-tertiary:#8A876E;
+    --color-text-inverse:#171A14;
+    --color-border:#313629; --color-border-strong:#434A38;
+    --color-brand:#5B7554;
+    --color-accent:#8FAE83; --color-accent-hover:#A3C096; --color-accent-muted:#2C3524;
+    --color-text-on-accent:#171A14; --color-focus:#8FAE83;
+    --color-danger:#DE8078;
+  }
+
+  /* ---- DEEP PLUM & GOLD ---- */
+  .app[data-palette="plum"] {
+    --color-bg-primary:#FAF6F3; --color-bg-secondary:#FFFFFF; --color-bg-tertiary:#F0E4DE;
+    --color-text-primary:#2A1420; --color-text-secondary:#6B4A5C; --color-text-tertiary:#9E8090;
+    --color-text-inverse:#FAF6F3;
+    --color-border:#E8DBE0; --color-border-strong:#D9C4CE;
+    --color-brand:#B86FA0;
+    --color-accent:#6E2A52; --color-accent-hover:#571F40; --color-accent-muted:#E8D3DF;
+    --color-text-on-accent:#FFFFFF; --color-focus:#6E2A52;
+    --color-danger:#B23B3B;
+  }
+  .app[data-palette="plum"][data-theme="dark"] {
+    --color-bg-primary:#1A0F16; --color-bg-secondary:#231620; --color-bg-tertiary:#2D1C29;
+    --color-text-primary:#F2E6ED; --color-text-secondary:#C7A8BC; --color-text-tertiary:#937B8A;
+    --color-text-inverse:#1A0F16;
+    --color-border:#37232F; --color-border-strong:#492F40;
+    --color-brand:#B86FA0;
+    --color-accent:#B86FA0; --color-accent-hover:#C989B2; --color-accent-muted:#3A2434;
+    --color-text-on-accent:#1A0F16; --color-focus:#B86FA0;
+    --color-danger:#E06C6C;
+  }
+
+  /* ============================================================
+     APP SHELL
+     ============================================================ */
+  .app {
+    width: 1180px; max-width: 100%; height: 760px;
+    border-radius: 16px; overflow: hidden; border: 1px solid #30363d;
+    display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 60px 1fr;
+    grid-template-areas: "nav topbar" "nav main";
+    background: var(--color-bg-primary); color: var(--color-text-primary);
+    font-family: var(--font-sans); font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    position: relative;
+    transition: background .18s ease, color .18s ease;
+  }
+  .app * { transition: background-color .18s ease, color .18s ease, border-color .18s ease; }
+
+  /* ---- top bar ---- */
+  .top-bar {
+    grid-area: topbar; display: flex; align-items: center; gap: var(--space-3);
+    padding: 0 var(--space-5); border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+  }
+  .account-cluster { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+  .wordmark {
+    font-weight: 900; font-size: var(--text-lg); letter-spacing: .005em;
+    color: var(--color-brand); white-space: nowrap;
+  }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: var(--radius-full);
+    border: 1px solid transparent; background: transparent; cursor: pointer;
+    display: grid; place-items: center; color: var(--color-text-secondary);
+    padding: 0;
+  }
+  .icon-btn:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
+  .icon-btn svg { width: 20px; height: 20px; display: block; }
+  .icon-btn.is-active { background: var(--color-accent-muted); color: var(--color-accent); }
+  .avatar {
+    width: 40px; height: 40px; border-radius: var(--radius-full); border: none;
+    padding: 0; cursor: pointer; overflow: hidden; background: var(--color-accent-muted);
+    display: grid; place-items: center; color: var(--color-accent);
+  }
+  .avatar svg { width: 24px; height: 24px; }
+  .avatar:hover { box-shadow: 0 0 0 3px var(--color-accent-muted); }
+
+  .top-search {
+    flex: 1; display: flex; justify-content: center;
+  }
+  .top-search .search-input { max-width: 420px; width: 100%; }
+  .search-input {
+    display: flex; align-items: center; gap: var(--space-2);
+    background: var(--color-bg-primary); border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full); padding: 9px var(--space-4);
+    color: var(--color-text-tertiary); font-size: var(--text-sm);
+  }
+  .search-input svg { width: 16px; height: 16px; flex: none; }
+
+  /* ---- left nav rail ---- */
+  .nav-rail {
+    grid-area: nav; background: var(--color-bg-secondary);
+    border-right: 1px solid var(--color-border);
+    padding: var(--space-4) var(--space-3); display: flex; flex-direction: column; gap: var(--space-1);
+  }
+  .btn {
+    font-family: inherit; font-weight: var(--weight-bold); font-size: var(--text-sm);
+    border-radius: var(--radius-full); border: 1.5px solid transparent;
+    padding: 11px var(--space-4); cursor: pointer; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  }
+  .btn-primary { background: var(--color-accent); color: var(--color-text-on-accent); }
+  .btn-primary:hover { background: var(--color-accent-hover); }
+  .btn-block { width: 100%; }
+  .btn-affix {
+    position: absolute; left: var(--space-4); top: 50%; transform: translateY(-50%);
+    font-weight: var(--weight-heavy); font-size: var(--text-lg); line-height: 1;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: 10px var(--space-3); border-radius: var(--radius-md);
+    color: var(--color-text-secondary); font-weight: var(--weight-bold);
+    font-size: var(--text-sm); cursor: pointer; border: none; background: transparent;
+    width: 100%; text-align: left;
+  }
+  .nav-item svg { width: 18px; height: 18px; flex: none; }
+  .nav-item:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
+  .nav-item.is-current { background: var(--color-accent-muted); color: var(--color-accent); }
+  .nav-divider { height: 1px; background: var(--color-border); margin: var(--space-3) var(--space-2); }
+  .nav-create-wrap { position: relative; margin-bottom: var(--space-2); }
+  .nav-create-wrap .btn { position: relative; }
+
+  /* ---- main pane ---- */
+  .main {
+    grid-area: main; overflow: auto; padding: var(--space-6) var(--space-7);
+    background: var(--color-bg-primary);
+  }
+  .view h1 { font-weight: var(--weight-heavy); font-size: var(--text-2xl); margin: 0 0 var(--space-2); }
+  .view p.lead { color: var(--color-text-secondary); margin: 0 0 var(--space-5); max-width: 60ch; }
+
+  .home-centered {
+    height: 100%; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; gap: var(--space-4);
+  }
+  .home-centered .wordmark { font-size: var(--text-3xl); }
+  .home-centered .search-input { width: 460px; max-width: 100%; font-size: var(--text-base); padding: 13px var(--space-5); }
+
+  .card {
+    background: var(--color-bg-secondary); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-1);
+  }
+  .card + .card { margin-top: var(--space-4); }
+  .card h2 { margin: 0 0 var(--space-2); font-size: var(--text-lg); font-weight: var(--weight-bold); }
+  .card p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
+  .muted-tag {
+    display: inline-block; background: var(--color-accent-muted); color: var(--color-accent);
+    font-weight: var(--weight-semibold); font-size: 12px; padding: 4px 10px;
+    border-radius: var(--radius-full); margin-right: 6px;
+  }
+  .btn-disabled {
+    background: var(--color-bg-tertiary); color: var(--color-text-tertiary);
+    border-radius: var(--radius-full); padding: 10px var(--space-4); font-size: var(--text-sm);
+    font-weight: var(--weight-bold); display: inline-flex; align-items: center; gap: var(--space-2);
+    cursor: not-allowed;
+  }
+  .coming-soon {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; height: 100%; gap: var(--space-3); color: var(--color-text-secondary);
+  }
+  .coming-soon .badge {
+    background: var(--color-accent-muted); color: var(--color-accent); font-weight: var(--weight-heavy);
+    font-size: var(--text-xs); letter-spacing: .08em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: var(--radius-full);
+  }
+
+  /* ---- popovers / menus ---- */
+  @keyframes menu-pop {
+    from { opacity: 0; transform: scale(.96) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .popover {
+    position: absolute; z-index: 30; background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2); padding: var(--space-4); min-width: 260px;
+    transform-origin: top right; animation: menu-pop .13s ease-out;
+  }
+  .menu {
+    position: absolute; z-index: 30; background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-2); padding: var(--space-2); min-width: 180px;
+    transform-origin: top right; animation: menu-pop .13s ease-out;
+  }
+  .menu button {
+    display: flex; width: 100%; align-items: center; gap: var(--space-3);
+    padding: 10px var(--space-3); border: none; background: transparent; cursor: pointer;
+    border-radius: var(--radius-sm); font: inherit; font-size: var(--text-sm);
+    font-weight: var(--weight-bold); color: var(--color-text-primary); text-align: left;
+  }
+  .menu button:hover { background: var(--color-bg-tertiary); }
+  .menu button svg { width: 16px; height: 16px; color: var(--color-text-secondary); }
+  .menu .danger { color: var(--color-danger); }
+  .menu-divider { height: 1px; background: var(--color-border); margin: var(--space-2) 0; }
+
+  .settings-pop { top: 64px; right: calc(var(--space-5) + 48px); min-width: 0; width: max-content; }
+  .avatar-menu { top: 64px; right: var(--space-5); }
+
+  /* Create menu: overhangs the nav rail into the content pane + a heavier
+     drop shadow so it clearly floats above, not lost inside the rail. */
+  .create-menu {
+    top: 56px; left: 0; width: 248px; transform-origin: top left;
+    box-shadow: 0 16px 40px rgba(0,0,0,.22), 0 4px 12px rgba(0,0,0,.14);
+  }
+  .create-menu button { padding: 12px var(--space-3); font-size: var(--text-base); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .popover, .menu { animation-duration: .01ms; }
+  }
+
+  .settings-pop h3 {
+    margin: 0 0 var(--space-3); font-size: var(--text-xs); letter-spacing: .06em;
+    text-transform: uppercase; color: var(--color-text-tertiary); font-weight: var(--weight-heavy);
+  }
+  .setting-row {
+    display: flex; align-items: center; justify-content: flex-start; gap: var(--space-2);
+    padding: var(--space-2) 0;
+  }
+  .setting-row label { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+  .mode-row { gap: var(--space-3); padding: var(--space-1) 0 var(--space-3); }
+  .mode-label {
+    font-size: var(--text-sm); font-weight: var(--weight-bold);
+    color: var(--color-text-tertiary); cursor: pointer; user-select: none;
+  }
+  .app:not([data-theme="dark"]) #mode-light,
+  .app[data-theme="dark"] #mode-dark { color: var(--color-text-primary); }
+  .switch {
+    width: 46px; height: 26px; border-radius: var(--radius-full); border: none; cursor: pointer;
+    background: var(--color-border-strong); position: relative; flex: none; padding: 0;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+    border-radius: var(--radius-full); background: var(--color-bg-secondary); transition: transform .16s ease;
+  }
+  .app[data-theme="dark"] .switch { background: var(--color-accent); }
+  .app[data-theme="dark"] .switch::after { transform: translateX(20px); }
+  .select {
+    appearance: none; -webkit-appearance: none;
+    font: inherit; font-size: var(--text-sm); font-weight: var(--weight-bold);
+    padding: 8px 36px 8px var(--space-3); border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-strong);
+    background-color: var(--color-bg-primary);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23978d82' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    color: var(--color-text-primary); cursor: pointer;
+  }
+
+  .splash {
+    grid-column: 1 / -1; grid-row: 1 / -1;
+    display: flex; flex-direction: column; background: var(--color-bg-primary);
+  }
+  .splash-bar { display: flex; justify-content: flex-end; align-items: center; padding: var(--space-4) var(--space-6); }
+  .splash-body {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--space-4); text-align: center; padding-bottom: 80px;
+  }
+  .splash-body .wordmark { font-size: 52px; }
+
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header class="mock-meta">
+  <strong>DAMN-32 — app shell &amp; navigation</strong>
+  <span>Terracotta default · Nunito · pill/rounded · live theming</span>
+  <button id="reset-btn">↺ reset to splash</button>
+  <span id="state-label" style="margin-left:auto;"></span>
+</header>
+
+<div class="frame-wrap">
+<div class="app" id="app" data-palette="terracotta">
+
+  <!-- ================= SPLASH (unauthenticated) ================= -->
+  <div class="splash" id="splash">
+    <div class="splash-bar">
+      <button class="btn btn-primary" id="login-btn">Log in</button>
+    </div>
+    <div class="splash-body">
+      <span class="wordmark">Damn That&rsquo;s Good</span>
+    </div>
+  </div>
+
+  <!-- ================= AUTHENTICATED SHELL ================= -->
+  <div class="top-bar" id="topbar" hidden>
+    <div class="top-search" id="topbar-search" hidden>
+      <div class="search-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        Search recipes
+      </div>
+    </div>
+    <div style="flex:1" id="topbar-spacer"></div>
+    <div class="account-cluster">
+      <button class="icon-btn" id="gear-btn" aria-label="Settings" aria-haspopup="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="avatar" id="avatar-btn" aria-label="Account" aria-haspopup="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5c0-3-4-5.5-9-5.5z"/></svg>
+      </button>
+    </div>
+
+    <!-- settings popover -->
+    <div class="popover settings-pop" id="settings-pop" hidden>
+      <h3>Appearance</h3>
+      <div class="setting-row mode-row">
+        <span class="mode-label" id="mode-light">Light</span>
+        <button class="switch" id="theme-switch" role="switch" aria-checked="false" aria-label="Dark mode"></button>
+        <span class="mode-label" id="mode-dark">Dark</span>
+      </div>
+      <div class="setting-row">
+        <label for="palette-select">Theme</label>
+        <select class="select" id="palette-select">
+          <option value="terracotta">Terracotta</option>
+          <option value="sage">Sage</option>
+          <option value="plum">Plum</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- avatar menu -->
+    <div class="menu avatar-menu" id="avatar-menu" hidden>
+      <button data-nav="profile">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5c0-3-4-5.5-9-5.5z"/></svg>
+        Profile
+      </button>
+      <div class="menu-divider"></div>
+      <button class="danger" id="signout-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+        Sign out
+      </button>
+    </div>
+  </div>
+
+  <div class="nav-rail" id="nav-rail" hidden>
+    <div class="nav-create-wrap">
+      <button class="btn btn-primary btn-block" id="create-btn"><span class="btn-affix">+</span>Create</button>
+      <div class="menu create-menu" id="create-menu" hidden>
+        <button>Recipe</button>
+        <button>Shopping list</button>
+      </div>
+    </div>
+    <button class="nav-item" data-nav="recipes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Recipes
+    </button>
+    <button class="nav-item" data-nav="shopping">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+      Shopping Lists
+    </button>
+    <div class="nav-divider"></div>
+    <button class="nav-item" data-nav="data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+      Data
+    </button>
+  </div>
+
+  <main class="main" id="main" hidden></main>
+
+</div>
+</div>
+
+<script>
+  const app = document.getElementById('app');
+  const splash = document.getElementById('splash');
+  const topbar = document.getElementById('topbar');
+  const navRail = document.getElementById('nav-rail');
+  const main = document.getElementById('main');
+  const topbarSearch = document.getElementById('topbar-search');
+  const topbarSpacer = document.getElementById('topbar-spacer');
+  const stateLabel = document.getElementById('state-label');
+
+  const settingsPop = document.getElementById('settings-pop');
+  const avatarMenu = document.getElementById('avatar-menu');
+  const createMenu = document.getElementById('create-menu');
+  const gearBtn = document.getElementById('gear-btn');
+  const avatarBtn = document.getElementById('avatar-btn');
+  const createBtn = document.getElementById('create-btn');
+  const themeSwitch = document.getElementById('theme-switch');
+  const paletteSelect = document.getElementById('palette-select');
+
+  let authed = false;
+  let hasNavigated = false;
+
+  // ---- theming: persisted, applied to the .app root ----
+  const PREF_KEY = 'dtg.appearance';
+  function loadPrefs() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+      return { palette: p.palette || 'terracotta', dark: !!p.dark };
+    } catch { return { palette: 'terracotta', dark: false }; }
+  }
+  function savePrefs(prefs) {
+    try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch {}
+  }
+  function applyPrefs(prefs) {
+    app.dataset.palette = prefs.palette;
+    if (prefs.dark) app.dataset.theme = 'dark'; else delete app.dataset.theme;
+    paletteSelect.value = prefs.palette;
+    themeSwitch.setAttribute('aria-checked', String(prefs.dark));
+  }
+  let prefs = loadPrefs();
+  applyPrefs(prefs);
+
+  function setDark(dark) {
+    prefs = { ...prefs, dark };
+    applyPrefs(prefs); savePrefs(prefs);           // paints immediately
+  }
+  themeSwitch.addEventListener('click', () => setDark(!prefs.dark));
+  document.getElementById('mode-light').addEventListener('click', () => setDark(false));
+  document.getElementById('mode-dark').addEventListener('click', () => setDark(true));
+  paletteSelect.addEventListener('change', () => {
+    prefs = { ...prefs, palette: paletteSelect.value };
+    applyPrefs(prefs); savePrefs(prefs);           // paints immediately
+  });
+
+  // ---- popovers: open one at a time, close on outside click only ----
+  function closeAllMenus(except) {
+    [settingsPop, avatarMenu, createMenu].forEach(m => { if (m !== except) m.hidden = true; });
+    gearBtn.classList.toggle('is-active', !settingsPop.hidden);
+  }
+  function toggleMenu(menu, anchorBtn) {
+    const willOpen = menu.hidden;
+    closeAllMenus(willOpen ? menu : null);
+    menu.hidden = !willOpen;
+    if (anchorBtn === gearBtn) gearBtn.classList.toggle('is-active', willOpen);
+  }
+  gearBtn.addEventListener('click', e => { e.stopPropagation(); toggleMenu(settingsPop, gearBtn); });
+  avatarBtn.addEventListener('click', e => { e.stopPropagation(); toggleMenu(avatarMenu, avatarBtn); });
+  createBtn.addEventListener('click', e => { e.stopPropagation(); toggleMenu(createMenu, createBtn); });
+  // clicks inside a popover must NOT close it (only an outside click does)
+  [settingsPop, avatarMenu, createMenu].forEach(m => m.addEventListener('click', e => e.stopPropagation()));
+  document.addEventListener('click', () => closeAllMenus(null));
+
+  // ---- navigation ----
+  const VIEWS = {
+    home: () => `
+      <div class="home-centered">
+        <span class="wordmark">Damn That&rsquo;s Good</span>
+        <div class="search-input" style="width:460px;max-width:100%;font-size:var(--text-base);padding:13px var(--space-5);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          Search recipes
+        </div>
+      </div>`,
+    recipes: () => `
+      <div class="view">
+        <h1>Recipes</h1>
+        <p class="lead">This is the Recipes page. The recipe list, cards, and entry flow arrive with DAMN-2.</p>
+        <div class="card"><span class="muted-tag">placeholder</span><h2 style="margin-top:12px;">Nothing here yet</h2><p>DAMN-32 delivers the route and the frame; the feature UI lands later.</p></div>
+      </div>`,
+    shopping: () => `
+      <div class="coming-soon">
+        <span class="badge">Coming soon</span>
+        <h1 style="font-weight:var(--weight-heavy);font-size:var(--text-2xl);margin:0;">Shopping Lists</h1>
+        <p style="max-width:44ch;">Manually-built lists, populated from an “Add to shopping list” action on a recipe — a V2 feature (DAMN-11). The nav slot is reserved now.</p>
+      </div>`,
+    data: () => `
+      <div class="view">
+        <h1>Data</h1>
+        <p class="lead">Reference data for the whole recipe book — ingredients and units of measure — plus a bulk export entry point.</p>
+        <div class="card"><h2>Ingredients</h2><p>Management UI is a follow-on story, spun off once the DAMN-2 schema lands.</p></div>
+        <div class="card"><h2>Units of measure</h2><p>Same — follow-on story after DAMN-2.</p></div>
+        <div class="card">
+          <h2>Export</h2>
+          <p style="margin-bottom:12px;">Full recipe-book export. Wires up when DAMN-23 ships (V4).</p>
+          <span class="btn-disabled">⬇ Export book — coming soon</span>
+        </div>
+      </div>`,
+    profile: () => `
+      <div class="view">
+        <h1>Profile</h1>
+        <p class="lead">This is the Profile page. The real view/edit page and avatar handling are DAMN-14.</p>
+        <div class="card"><span class="muted-tag">placeholder</span><h2 style="margin-top:12px;">signed in as e2e@example.test</h2><p>Default avatar until DAMN-24 adds photo storage.</p></div>
+      </div>`,
+  };
+
+  function render(view) {
+    main.innerHTML = VIEWS[view] ? VIEWS[view]() : VIEWS.home();
+    document.querySelectorAll('.nav-item').forEach(n =>
+      n.classList.toggle('is-current', n.dataset.nav === view));
+    stateLabel.textContent = authed ? `authed · ${view}${hasNavigated ? '' : ' · (first entry)'}` : 'splash';
+  }
+
+  function goAuthed() {
+    authed = true; hasNavigated = false;
+    splash.hidden = true;
+    topbar.hidden = false; navRail.hidden = false; main.hidden = false;
+    topbarSearch.hidden = true; topbarSpacer.hidden = false;
+    render('home');
+  }
+  function navigate(view) {
+    if (!hasNavigated) {
+      hasNavigated = true;
+      topbarSearch.hidden = false; topbarSpacer.hidden = true;
+    }
+    render(view);
+  }
+  function goSplash() {
+    authed = false; hasNavigated = false;
+    closeAllMenus(null);
+    topbar.hidden = true; navRail.hidden = true; main.hidden = true;
+    splash.hidden = false;
+    stateLabel.textContent = 'splash';
+  }
+
+  document.getElementById('login-btn').addEventListener('click', goAuthed);
+  document.getElementById('signout-btn').addEventListener('click', goSplash);
+  document.getElementById('reset-btn').addEventListener('click', goSplash);
+  document.querySelectorAll('[data-nav]').forEach(el =>
+    el.addEventListener('click', () => { navigate(el.dataset.nav); }));
+
+  goSplash();
+</script>
+</body>
+</html>

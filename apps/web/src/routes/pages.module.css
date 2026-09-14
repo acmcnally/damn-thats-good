@@ -1,0 +1,110 @@
+/* Shared styling for the placeholder pages (Recipes, Shopping Lists, Data,
+   Profile).
+   TODO: DAMN-2 / DAMN-11 / DAMN-14 — real feature UI replaces these pages. */
+
+.page {
+  max-width: 70ch;
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  margin: 0 0 var(--space-2);
+}
+
+.lead {
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-5);
+  max-width: 60ch;
+}
+
+.card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-1);
+}
+
+.card + .card {
+  margin-top: var(--space-4);
+}
+
+.card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.eyebrow {
+  display: inline-block;
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-3);
+}
+
+.exportButton {
+  margin-top: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-tertiary);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 10px var(--space-4);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  cursor: not-allowed;
+}
+
+.exportButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* "Coming soon" full-pane state (Shopping Lists). */
+.comingSoon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 100%;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+}
+
+.comingSoon .badge {
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+}
+
+.comingSoon h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  margin: 0;
+}
+
+.comingSoon p {
+  max-width: 44ch;
+  margin: 0;
+}

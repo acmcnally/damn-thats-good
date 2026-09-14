@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-32 — Rubik vs Figtree at UI sizes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#FBF5EC; --text:#2A1D14; --text2:#6E5A47; --text3:#A5927C;
+    --border:#E7DAC6; --accent:#B34A24; --accent-muted:#F1DCC9; --card:#FFF; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#14100c; color:#c9d1d9; font-family:system-ui,sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid #30363d; font-size:14px; }
+  header b { color:#fff; }
+  .wrap { display:grid; grid-template-columns:1fr 1fr; gap:2px; background:#30363d; }
+  @media (max-width:900px){ .wrap{ grid-template-columns:1fr; } }
+  .pane { background:var(--bg); color:var(--text); padding:26px 28px; }
+  .pane.dark { --bg:#1C1410; --text:#F3E7DA; --text2:#C7B4A0; --text3:#8C7663;
+    --border:#3A2A1E; --accent:#E07A4A; --accent-muted:#3D2418; --card:#241A14; }
+  .pane.rubik { font-family:'Rubik',system-ui,sans-serif; }
+  .pane.figtree { font-family:'Figtree',system-ui,sans-serif; }
+  .fname { font:700 15px/1 var(--fam); color:var(--accent); margin-bottom:2px; }
+  .pane.rubik .fname::after { content:'Rubik'; }
+  .pane.figtree .fname::after { content:'Figtree'; }
+  .mode { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; margin-bottom:20px; }
+
+  .block { margin-bottom:22px; }
+  .block > .lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px; }
+
+  /* nav row — 14px medium, like the real nav items */
+  .nav { display:flex; gap:18px; }
+  .nav span { font-size:14px; font-weight:600; color:var(--text2); }
+  .nav span.on { color:var(--accent); }
+
+  /* captions / metadata — 13px and 12px */
+  .cap13 { font-size:13px; font-weight:600; color:var(--text2); }
+  .cap12 { font-size:12px; font-weight:600; color:var(--text2); margin-top:3px; }
+
+  /* all-caps label — the tricky case (SERVES 4 · PROVENANCE …) */
+  .caps { font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--text3); }
+
+  /* ingredient quantities — small numerals + fractions + units, 13px */
+  .ing { font-size:13.5px; line-height:1.9; }
+  .ing b { font-weight:700; }
+
+  /* form field label + helper — 12.5px / 11.5px */
+  .field-lbl { font-size:12.5px; font-weight:700; }
+  .field-help { font-size:11.5px; color:var(--text3); margin-top:2px; }
+
+  /* the ambiguous-glyph stress line: a e c s o g 0 O 1 l I rn m */
+  .glyphs { font-size:12px; font-weight:500; letter-spacing:.02em; color:var(--text); }
+  .glyphs .big { font-size:15px; }
+
+  /* a pill button + tag at their real sizes */
+  .row { display:flex; align-items:center; gap:12px; margin-top:4px; }
+  .btn { font-family:inherit; font-weight:700; font-size:14px; border:none; background:var(--accent);
+    color:#fff; border-radius:999px; padding:9px 16px; }
+  .pane.dark .btn { color:#1C1410; }
+  .tag { font-weight:700; font-size:11px; background:var(--accent-muted); color:var(--accent); padding:3px 9px; border-radius:999px; }
+</style>
+</head>
+<body>
+<header><b>Rubik vs Figtree — UI-size text only.</b> Same content, Terracotta palette. Screens captured at 1× (standard-DPI) and 2× (Retina).</header>
+
+<div class="wrap" id="light">
+  <div class="pane rubik">
+    <div class="fname"></div><div class="mode">Light</div>
+
+    <div class="block"><div class="lbl">Nav items · 14px / 600</div>
+      <div class="nav"><span class="on">Recipes</span><span>Shopping Lists</span><span>Data</span></div></div>
+
+    <div class="block"><div class="lbl">Metadata · 13px &amp; 12px</div>
+      <div class="cap13">Serves 6 · 3 hr · from Mom&rsquo;s recipe box</div>
+      <div class="cap12">Last cooked 4 days ago · version 7 of 9</div></div>
+
+    <div class="block"><div class="lbl">All-caps label · 11px / 700 / tracked</div>
+      <div class="caps">SERVES 4 · PROVENANCE: NONNA&rsquo;S RECIPE CARD, 1987</div></div>
+
+    <div class="block"><div class="lbl">Ingredient quantities · 13.5px</div>
+      <div class="ing">
+        <b>1½</b> cups all-purpose flour<br>
+        <b>⅔</b> cup granulated sugar<br>
+        <b>2¼</b> tsp active dry yeast<br>
+        <b>350</b> g bittersweet chocolate, chopped
+      </div></div>
+
+    <div class="block"><div class="lbl">Form label + helper · 12.5px / 11.5px</div>
+      <div class="field-lbl">Servings / yield</div>
+      <div class="field-help">Optional. Shown on the recipe card and used for scaling.</div></div>
+
+    <div class="block"><div class="lbl">Ambiguous glyphs · 12px, then 15px</div>
+      <div class="glyphs">a e c s o g 0 O 1 l I rn m &nbsp; &mdash; &nbsp; “race / rice / rn / m” &nbsp;
+        <span class="big">a e c s o g 0 O 1 l I rn m</span></div></div>
+
+    <div class="block"><div class="lbl">Button + tag at real size</div>
+      <div class="row"><button class="btn">Save recipe</button><span class="tag">weeknight</span></div></div>
+  </div>
+
+  <div class="pane figtree">
+    <div class="fname"></div><div class="mode">Light</div>
+    <div class="block"><div class="lbl">Nav items · 14px / 600</div>
+      <div class="nav"><span class="on">Recipes</span><span>Shopping Lists</span><span>Data</span></div></div>
+    <div class="block"><div class="lbl">Metadata · 13px &amp; 12px</div>
+      <div class="cap13">Serves 6 · 3 hr · from Mom&rsquo;s recipe box</div>
+      <div class="cap12">Last cooked 4 days ago · version 7 of 9</div></div>
+    <div class="block"><div class="lbl">All-caps label · 11px / 700 / tracked</div>
+      <div class="caps">SERVES 4 · PROVENANCE: NONNA&rsquo;S RECIPE CARD, 1987</div></div>
+    <div class="block"><div class="lbl">Ingredient quantities · 13.5px</div>
+      <div class="ing">
+        <b>1½</b> cups all-purpose flour<br>
+        <b>⅔</b> cup granulated sugar<br>
+        <b>2¼</b> tsp active dry yeast<br>
+        <b>350</b> g bittersweet chocolate, chopped
+      </div></div>
+    <div class="block"><div class="lbl">Form label + helper · 12.5px / 11.5px</div>
+      <div class="field-lbl">Servings / yield</div>
+      <div class="field-help">Optional. Shown on the recipe card and used for scaling.</div></div>
+    <div class="block"><div class="lbl">Ambiguous glyphs · 12px, then 15px</div>
+      <div class="glyphs">a e c s o g 0 O 1 l I rn m &nbsp; &mdash; &nbsp; “race / rice / rn / m” &nbsp;
+        <span class="big">a e c s o g 0 O 1 l I rn m</span></div></div>
+    <div class="block"><div class="lbl">Button + tag at real size</div>
+      <div class="row"><button class="btn">Save recipe</button><span class="tag">weeknight</span></div></div>
+  </div>
+</div>
+
+<div class="wrap" id="dark">
+  <div class="pane rubik dark">
+    <div class="fname"></div><div class="mode">Dark</div>
+    <div class="block"><div class="lbl">Nav items · 14px / 600</div>
+      <div class="nav"><span class="on">Recipes</span><span>Shopping Lists</span><span>Data</span></div></div>
+    <div class="block"><div class="lbl">Metadata · 13px &amp; 12px</div>
+      <div class="cap13">Serves 6 · 3 hr · from Mom&rsquo;s recipe box</div>
+      <div class="cap12">Last cooked 4 days ago · version 7 of 9</div></div>
+    <div class="block"><div class="lbl">All-caps label · 11px / 700 / tracked</div>
+      <div class="caps">SERVES 4 · PROVENANCE: NONNA&rsquo;S RECIPE CARD, 1987</div></div>
+    <div class="block"><div class="lbl">Ingredient quantities · 13.5px</div>
+      <div class="ing">
+        <b>1½</b> cups all-purpose flour<br>
+        <b>⅔</b> cup granulated sugar<br>
+        <b>2¼</b> tsp active dry yeast<br>
+        <b>350</b> g bittersweet chocolate, chopped
+      </div></div>
+    <div class="block"><div class="lbl">Form label + helper · 12.5px / 11.5px</div>
+      <div class="field-lbl">Servings / yield</div>
+      <div class="field-help">Optional. Shown on the recipe card and used for scaling.</div></div>
+    <div class="block"><div class="lbl">Ambiguous glyphs · 12px, then 15px</div>
+      <div class="glyphs">a e c s o g 0 O 1 l I rn m &nbsp; &mdash; &nbsp; “race / rice / rn / m” &nbsp;
+        <span class="big">a e c s o g 0 O 1 l I rn m</span></div></div>
+    <div class="block"><div class="lbl">Button + tag at real size</div>
+      <div class="row"><button class="btn">Save recipe</button><span class="tag">weeknight</span></div></div>
+  </div>
+
+  <div class="pane figtree dark">
+    <div class="fname"></div><div class="mode">Dark</div>
+    <div class="block"><div class="lbl">Nav items · 14px / 600</div>
+      <div class="nav"><span class="on">Recipes</span><span>Shopping Lists</span><span>Data</span></div></div>
+    <div class="block"><div class="lbl">Metadata · 13px &amp; 12px</div>
+      <div class="cap13">Serves 6 · 3 hr · from Mom&rsquo;s recipe box</div>
+      <div class="cap12">Last cooked 4 days ago · version 7 of 9</div></div>
+    <div class="block"><div class="lbl">All-caps label · 11px / 700 / tracked</div>
+      <div class="caps">SERVES 4 · PROVENANCE: NONNA&rsquo;S RECIPE CARD, 1987</div></div>
+    <div class="block"><div class="lbl">Ingredient quantities · 13.5px</div>
+      <div class="ing">
+        <b>1½</b> cups all-purpose flour<br>
+        <b>⅔</b> cup granulated sugar<br>
+        <b>2¼</b> tsp active dry yeast<br>
+        <b>350</b> g bittersweet chocolate, chopped
+      </div></div>
+    <div class="block"><div class="lbl">Form label + helper · 12.5px / 11.5px</div>
+      <div class="field-lbl">Servings / yield</div>
+      <div class="field-help">Optional. Shown on the recipe card and used for scaling.</div></div>
+    <div class="block"><div class="lbl">Ambiguous glyphs · 12px, then 15px</div>
+      <div class="glyphs">a e c s o g 0 O 1 l I rn m &nbsp; &mdash; &nbsp; “race / rice / rn / m” &nbsp;
+        <span class="big">a e c s o g 0 O 1 l I rn m</span></div></div>
+    <div class="block"><div class="lbl">Button + tag at real size</div>
+      <div class="row"><button class="btn">Save recipe</button><span class="tag">weeknight</span></div></div>
+  </div>
+</div>
+
+</body>
+</html>

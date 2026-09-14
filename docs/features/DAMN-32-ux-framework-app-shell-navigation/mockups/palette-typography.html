@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Damn That's Good — palette &amp; typography exploration</title>
+<!--
+  NOTE: this exploration page intentionally has no hosted-font dependency
+  (headless capture runs offline). Each option's --font-display below names
+  its real target face first with a same-shelf system fallback after it —
+  swap in the hosted @import once a direction is picked and typography is
+  reviewed for real, per design-tokens.md's squint check.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.5 system-ui, sans-serif;
+    background: #111;
+    color: #eee;
+  }
+  .toc {
+    position: sticky; top: 0; z-index: 10;
+    background: #0d1117; color: #c9d1d9;
+    padding: 12px 24px; display: flex; gap: 20px; align-items: baseline;
+    font: 13px/1.4 system-ui, sans-serif; border-bottom: 1px solid #30363d;
+  }
+  .toc a { color: #8ab4f8; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc strong { color: #eee; }
+
+  section.option { padding: 48px 24px 64px; }
+  .option-head { max-width: 900px; margin: 0 auto 32px; }
+  .option-head h2 { margin: 0 0 6px; font-size: 22px; color: #fff; }
+  .option-head p { margin: 0; color: #9aa4b2; max-width: 68ch; }
+
+  /* ---- live light/dark toggle demo: proves the brand color stays fixed
+     while the interactive accent shifts per theme for contrast ---- */
+  .toggle-demo {
+    max-width: 900px; margin: 0 auto 40px; border-radius: 12px; overflow: hidden;
+    border: 1px solid #30363d; transition: background .15s, color .15s;
+  }
+  .toggle-demo[data-theme="light"] { background: var(--td-bg-light); color: var(--td-text-light); }
+  .toggle-demo[data-theme="dark"] { background: var(--td-bg-dark); color: var(--td-text-dark); }
+  .toggle-demo .td-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1px solid rgba(128,128,128,.25);
+  }
+  .toggle-demo .td-wordmark { font: 600 20px/1 var(--font-display); letter-spacing: .01em; }
+  .toggle-demo[data-theme="light"] .td-wordmark,
+  .toggle-demo[data-theme="dark"] .td-wordmark { color: var(--td-brand); }
+  .td-switch {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font: 12px/1 system-ui, sans-serif; opacity: .85; background: none; border: none; color: inherit; padding: 6px;
+  }
+  .td-switch .track {
+    width: 36px; height: 20px; border-radius: 999px; background: rgba(128,128,128,.35);
+    position: relative; transition: background .15s;
+  }
+  .td-switch .knob {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+    background: currentColor; transition: transform .15s;
+  }
+  .toggle-demo[data-theme="dark"] .track { background: rgba(128,128,128,.5); }
+  .toggle-demo[data-theme="dark"] .knob { transform: translateX(16px); }
+  .toggle-demo .td-body { padding: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .toggle-demo[data-theme="light"] .td-btn { background: var(--td-accent-light); color: var(--td-btn-text-light); }
+  .toggle-demo[data-theme="dark"] .td-btn { background: var(--td-accent-dark); color: var(--td-btn-text-dark); }
+  .td-btn { border: none; border-radius: 8px; padding: 10px 18px; font: 600 14px/1 var(--font-body); cursor: pointer; min-height: 44px; }
+  .toggle-demo .td-note { font: 12px/1.5 system-ui, sans-serif; opacity: .7; max-width: 32ch; }
+
+  .demo-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 900px) { .demo-modes { grid-template-columns: 1fr; } }
+  .mode-panel { border-radius: 10px; overflow: hidden; border: 1px solid #30363d; }
+  .mode-label { font: 12px/1 system-ui, sans-serif; padding: 6px 14px; background: #0d1117; color: #8b949e; }
+
+  /* ---- swatch strip (shared layout, colored by the panel's own tokens) ---- */
+  .swatches { display: flex; flex-wrap: wrap; gap: 0; }
+  .swatch { flex: 1 1 90px; min-width: 90px; padding: 10px 10px 8px; font: 11px/1.3 system-ui, monospace; }
+  .swatch .name { display: block; opacity: .85; }
+  .swatch .hex { display: block; opacity: .6; margin-top: 2px; }
+
+  .panel-body { padding: 24px; }
+  .composition { display: flex; flex-direction: column; gap: 18px; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { border: none; border-radius: var(--radius, 8px); padding: 10px 18px; font: 600 14px/1 var(--font-body); cursor: pointer; min-height: 44px; }
+  .btn-secondary { background: transparent; border: 1.5px solid currentColor; }
+  .btn-ghost { background: transparent; padding: 10px 12px; }
+  .card { border-radius: var(--radius-lg, 14px); padding: 18px 20px; }
+  .card .tag { display: inline-block; font: 600 11px/1 var(--font-body); padding: 4px 10px; border-radius: 999px; margin-right: 6px; }
+  .card h3 { margin: 10px 0 4px; font: 600 20px/1.2 var(--font-display); }
+  .card p { margin: 0; font-size: 13.5px; }
+  .link-row a { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+  .type-scale > div { margin-bottom: 10px; }
+  .type-display { font: 500 40px/1.1 var(--font-display); }
+  .type-h1 { font: 600 26px/1.2 var(--font-display); }
+  .type-h2 { font: 600 19px/1.3 var(--font-display); }
+  .type-body { font: 400 15.5px/1.6 var(--font-body); max-width: 56ch; }
+  .type-small { font: 400 12.5px/1.5 var(--font-body); opacity: .75; }
+
+  table.contrast { width: 100%; border-collapse: collapse; font: 12px/1.4 system-ui, monospace; margin-top: 6px; }
+  table.contrast td { padding: 4px 8px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .pass { color: #7ee787; }
+</style>
+</head>
+<body>
+
+<header class="toc">
+  <strong>Palette &amp; typography — 3 directions</strong>
+  <a href="#option-a">A · Terracotta &amp; Cream</a>
+  <a href="#option-b">B · Sage &amp; Butter</a>
+  <a href="#option-c">C · Deep Plum &amp; Gold</a>
+</header>
+
+<!-- ============================= OPTION A ============================= -->
+<section class="option" id="option-a" style="--font-display:'Fraunces',Georgia,'Times New Roman',serif; --font-body:system-ui,sans-serif;">
+  <div class="option-head">
+    <h2>A — Terracotta &amp; Cream</h2>
+    <p>Rust-orange accent on a warm cream page, with a slightly irregular serif (Fraunces) for headings — the closest to an actual handwritten recipe card or a well-used cookbook. Body text stays plain system sans so long ingredient lists and steps stay easy to scan.</p>
+  </div>
+
+  <div class="toggle-demo" id="td-a" data-theme="light" style="--td-bg-light:#FBF5EC; --td-text-light:#2A1D14; --td-bg-dark:#1C1410; --td-text-dark:#F3E7DA; --td-brand:#B34A24; --td-accent-light:#B34A24; --td-btn-text-light:#FFFFFF; --td-accent-dark:#E07A4A; --td-btn-text-dark:#1C1410; --font-display:'Fraunces',Georgia,'Times New Roman',serif; --font-body:system-ui,sans-serif;">
+    <div class="td-bar">
+      <span class="td-wordmark">Damn That&rsquo;s Good</span>
+      <button class="td-switch" onclick="toggleTheme('td-a')" aria-label="Toggle light/dark theme">
+        <span>Light</span><span class="track"><span class="knob"></span></span><span>Dark</span>
+      </button>
+    </div>
+    <div class="td-body">
+      <button class="td-btn">Save recipe</button>
+      <p class="td-note">Wordmark: one fixed <code>--color-brand</code> (#B34A24) in both themes. Button: theme-tuned <code>--color-accent</code> for AA text contrast.</p>
+    </div>
+  </div>
+
+  <div class="demo-modes">
+
+    <!-- LIGHT -->
+    <div class="mode-panel" style="background:#FBF5EC; color:#2A1D14; --radius:8px; --radius-lg:14px;">
+      <div class="mode-label">Light</div>
+      <div class="swatches" style="background:#FBF5EC;">
+        <div class="swatch" style="background:#FBF5EC; color:#2A1D14;"><span class="name">bg-primary</span><span class="hex">#FBF5EC</span></div>
+        <div class="swatch" style="background:#F2E6D3; color:#2A1D14;"><span class="name">bg-tertiary</span><span class="hex">#F2E6D3</span></div>
+        <div class="swatch" style="background:#2A1D14; color:#F3E7DA;"><span class="name">text-primary</span><span class="hex">#2A1D14</span></div>
+        <div class="swatch" style="background:#6E5A47; color:#fff;"><span class="name">text-secondary</span><span class="hex">#6E5A47</span></div>
+        <div class="swatch" style="background:#B34A24; color:#fff;"><span class="name">accent</span><span class="hex">#B34A24</span></div>
+        <div class="swatch" style="background:#F1DCC9; color:#2A1D14;"><span class="name">accent-muted</span><span class="hex">#F1DCC9</span></div>
+      </div>
+      <div class="panel-body">
+        <div class="composition">
+          <div class="type-scale">
+            <div class="type-display">Damn That&rsquo;s Good</div>
+            <div class="type-h1">Grandma&rsquo;s Sunday Pot Roast</div>
+            <div class="type-h2">Ingredients</div>
+            <div class="type-body">Sear the chuck roast on all sides in a hot Dutch oven, then set aside. Soften the onions and carrots in the same fat before deglazing with red wine.</div>
+            <div class="type-small">Serves 6 · from Mom&rsquo;s recipe box</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" style="background:#B34A24; color:#fff;">Save recipe</button>
+            <button class="btn btn-secondary" style="color:#B34A24;">Add to collection</button>
+            <button class="btn btn-ghost" style="color:#6E5A47;">Cancel</button>
+          </div>
+          <div class="card" style="background:#F2E6D3; border:1px solid #E3D3BC;">
+            <span class="tag" style="background:#F1DCC9; color:#B34A24;">weeknight</span>
+            <span class="tag" style="background:#F1DCC9; color:#B34A24;">braise</span>
+            <h3>Braised Short Ribs</h3>
+            <p style="color:#6E5A47;">Provenance: Nonna&rsquo;s recipe card, 1987</p>
+          </div>
+          <div class="link-row"><a href="#" style="color:#B34A24;">View full version history →</a></div>
+          <table class="contrast">
+            <tr><td>text-primary / bg-primary</td><td class="pass">15.1:1 ✓ AA</td></tr>
+            <tr><td>text-secondary / bg-primary</td><td class="pass">6.0:1 ✓ AA</td></tr>
+            <tr><td>accent (as text) / bg-primary</td><td class="pass">4.9:1 ✓ AA</td></tr>
+            <tr><td>text-inverse (white) / accent</td><td class="pass">5.4:1 ✓ AA</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DARK -->
+    <div class="mode-panel" style="background:#1C1410; color:#F3E7DA; --radius:8px; --radius-lg:14px;">
+      <div class="mode-label">Dark</div>
+      <div class="swatches" style="background:#1C1410;">
+        <div class="swatch" style="background:#1C1410; color:#F3E7DA;"><span class="name">bg-primary</span><span class="hex">#1C1410</span></div>
+        <div class="swatch" style="background:#2E2119; color:#F3E7DA;"><span class="name">bg-tertiary</span><span class="hex">#2E2119</span></div>
+        <div class="swatch" style="background:#F3E7DA; color:#1C1410;"><span class="name">text-primary</span><span class="hex">#F3E7DA</span></div>
+        <div class="swatch" style="background:#C7B4A0; color:#1C1410;"><span class="name">text-secondary</span><span class="hex">#C7B4A0</span></div>
+        <div class="swatch" style="background:#E07A4A; color:#1C1410;"><span class="name">accent</span><span class="hex">#E07A4A</span></div>
+        <div class="swatch" style="background:#3D2418; color:#F3E7DA;"><span class="name">accent-muted</span><span class="hex">#3D2418</span></div>
+      </div>
+      <div class="panel-body">
+        <div class="composition">
+          <div class="type-scale">
+            <div class="type-display">Damn That&rsquo;s Good</div>
+            <div class="type-h1">Grandma&rsquo;s Sunday Pot Roast</div>
+            <div class="type-h2">Ingredients</div>
+            <div class="type-body">Sear the chuck roast on all sides in a hot Dutch oven, then set aside. Soften the onions and carrots in the same fat before deglazing with red wine.</div>
+            <div class="type-small">Serves 6 · from Mom&rsquo;s recipe box</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" style="background:#E07A4A; color:#1C1410;">Save recipe</button>
+            <button class="btn btn-secondary" style="color:#E07A4A;">Add to collection</button>
+            <button class="btn btn-ghost" style="color:#C7B4A0;">Cancel</button>
+          </div>
+          <div class="card" style="background:#2E2119; border:1px solid #3C2C20;">
+            <span class="tag" style="background:#3D2418; color:#E07A4A;">weeknight</span>
+            <span class="tag" style="background:#3D2418; color:#E07A4A;">braise</span>
+            <h3>Braised Short Ribs</h3>
+            <p style="color:#C7B4A0;">Provenance: Nonna&rsquo;s recipe card, 1987</p>
+          </div>
+          <div class="link-row"><a href="#" style="color:#E07A4A;">View full version history →</a></div>
+          <table class="contrast">
+            <tr><td>text-primary / bg-primary</td><td class="pass">14.9:1 ✓ AA</td></tr>
+            <tr><td>text-secondary / bg-primary</td><td class="pass">9.1:1 ✓ AA</td></tr>
+            <tr><td>accent (as text) / bg-primary</td><td class="pass">6.1:1 ✓ AA</td></tr>
+            <tr><td>text-inverse / accent</td><td class="pass">6.1:1 ✓ AA</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= OPTION B ============================= -->
+<section class="option" id="option-b" style="--font-display:'Nunito',system-ui,sans-serif; --font-body:'Nunito',system-ui,sans-serif;">
+  <div class="option-head">
+    <h2>B — Sage &amp; Butter</h2>
+    <p>Muted herb-garden sage as the accent, warm off-white background, one rounded friendly sans (Nunito) used for everything. The coziest and least "designed" of the three — softer edges throughout, reads more approachable than premium.</p>
+  </div>
+
+  <div class="toggle-demo" id="td-b" data-theme="light" style="--td-bg-light:#FAF8F2; --td-text-light:#2C2A1E; --td-bg-dark:#171A14; --td-text-dark:#EEEBDD; --td-brand:#5B7554; --td-accent-light:#5B7554; --td-btn-text-light:#FFFFFF; --td-accent-dark:#8FAE83; --td-btn-text-dark:#171A14; --font-display:'Nunito',system-ui,sans-serif; --font-body:'Nunito',system-ui,sans-serif;">
+    <div class="td-bar">
+      <span class="td-wordmark" style="font-weight:800;">Damn That&rsquo;s Good</span>
+      <button class="td-switch" onclick="toggleTheme('td-b')" aria-label="Toggle light/dark theme">
+        <span>Light</span><span class="track"><span class="knob"></span></span><span>Dark</span>
+      </button>
+    </div>
+    <div class="td-body">
+      <button class="td-btn" style="border-radius:999px;">Save recipe</button>
+      <p class="td-note">Wordmark: one fixed <code>--color-brand</code> (#5B7554) in both themes. Button: theme-tuned <code>--color-accent</code> for AA text contrast.</p>
+    </div>
+  </div>
+
+  <div class="demo-modes">
+
+    <!-- LIGHT -->
+    <div class="mode-panel" style="background:#FAF8F2; color:#2C2A1E; --radius:999px; --radius-lg:16px;">
+      <div class="mode-label">Light</div>
+      <div class="swatches" style="background:#FAF8F2;">
+        <div class="swatch" style="background:#FAF8F2; color:#2C2A1E;"><span class="name">bg-primary</span><span class="hex">#FAF8F2</span></div>
+        <div class="swatch" style="background:#EFEADB; color:#2C2A1E;"><span class="name">bg-tertiary</span><span class="hex">#EFEADB</span></div>
+        <div class="swatch" style="background:#2C2A1E; color:#EEEBDD;"><span class="name">text-primary</span><span class="hex">#2C2A1E</span></div>
+        <div class="swatch" style="background:#5F5C48; color:#fff;"><span class="name">text-secondary</span><span class="hex">#5F5C48</span></div>
+        <div class="swatch" style="background:#5B7554; color:#fff;"><span class="name">accent</span><span class="hex">#5B7554</span></div>
+        <div class="swatch" style="background:#DCE6D5; color:#2C2A1E;"><span class="name">accent-muted</span><span class="hex">#DCE6D5</span></div>
+        <div class="swatch" style="background:#D9A441; color:#2C2A1E;"><span class="name">accent-secondary (butter)</span><span class="hex">#D9A441</span></div>
+      </div>
+      <div class="panel-body">
+        <div class="composition">
+          <div class="type-scale">
+            <div class="type-display" style="font-weight:800;">Damn That&rsquo;s Good</div>
+            <div class="type-h1" style="font-weight:800;">Grandma&rsquo;s Sunday Pot Roast</div>
+            <div class="type-h2" style="font-weight:700;">Ingredients</div>
+            <div class="type-body">Sear the chuck roast on all sides in a hot Dutch oven, then set aside. Soften the onions and carrots in the same fat before deglazing with red wine.</div>
+            <div class="type-small">Serves 6 · from Mom&rsquo;s recipe box</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" style="background:#5B7554; color:#fff;">Save recipe</button>
+            <button class="btn btn-secondary" style="color:#5B7554; border-radius:999px;">Add to collection</button>
+            <button class="btn btn-ghost" style="color:#5F5C48;">Cancel</button>
+          </div>
+          <div class="card" style="background:#EFEADB; border:1px solid #DEDAC5;">
+            <span class="tag" style="background:#FBEBC9; color:#8A6414;">weeknight</span>
+            <span class="tag" style="background:#DCE6D5; color:#3E5238;">braise</span>
+            <h3 style="font-weight:800;">Braised Short Ribs</h3>
+            <p style="color:#5F5C48;">Provenance: Nonna&rsquo;s recipe card, 1987</p>
+          </div>
+          <div class="link-row"><a href="#" style="color:#5B7554;">View full version history →</a></div>
+          <table class="contrast">
+            <tr><td>text-primary / bg-primary</td><td class="pass">13.6:1 ✓ AA</td></tr>
+            <tr><td>text-secondary / bg-primary</td><td class="pass">6.4:1 ✓ AA</td></tr>
+            <tr><td>accent (as text) / bg-primary</td><td class="pass">4.8:1 ✓ AA</td></tr>
+            <tr><td>text-inverse (white) / accent</td><td class="pass">5.1:1 ✓ AA</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DARK -->
+    <div class="mode-panel" style="background:#171A14; color:#EEEBDD; --radius:999px; --radius-lg:16px;">
+      <div class="mode-label">Dark</div>
+      <div class="swatches" style="background:#171A14;">
+        <div class="swatch" style="background:#171A14; color:#EEEBDD;"><span class="name">bg-primary</span><span class="hex">#171A14</span></div>
+        <div class="swatch" style="background:#262B20; color:#EEEBDD;"><span class="name">bg-tertiary</span><span class="hex">#262B20</span></div>
+        <div class="swatch" style="background:#EEEBDD; color:#171A14;"><span class="name">text-primary</span><span class="hex">#EEEBDD</span></div>
+        <div class="swatch" style="background:#C1BCA0; color:#171A14;"><span class="name">text-secondary</span><span class="hex">#C1BCA0</span></div>
+        <div class="swatch" style="background:#8FAE83; color:#171A14;"><span class="name">accent</span><span class="hex">#8FAE83</span></div>
+        <div class="swatch" style="background:#2C3524; color:#EEEBDD;"><span class="name">accent-muted</span><span class="hex">#2C3524</span></div>
+      </div>
+      <div class="panel-body">
+        <div class="composition">
+          <div class="type-scale">
+            <div class="type-display" style="font-weight:800;">Damn That&rsquo;s Good</div>
+            <div class="type-h1" style="font-weight:800;">Grandma&rsquo;s Sunday Pot Roast</div>
+            <div class="type-h2" style="font-weight:700;">Ingredients</div>
+            <div class="type-body">Sear the chuck roast on all sides in a hot Dutch oven, then set aside. Soften the onions and carrots in the same fat before deglazing with red wine.</div>
+            <div class="type-small">Serves 6 · from Mom&rsquo;s recipe box</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" style="background:#8FAE83; color:#171A14;">Save recipe</button>
+            <button class="btn btn-secondary" style="color:#8FAE83; border-radius:999px;">Add to collection</button>
+            <button class="btn btn-ghost" style="color:#C1BCA0;">Cancel</button>
+          </div>
+          <div class="card" style="background:#262B20; border:1px solid #333827;">
+            <span class="tag" style="background:#2C3524; color:#8FAE83;">weeknight</span>
+            <span class="tag" style="background:#2C3524; color:#8FAE83;">braise</span>
+            <h3 style="font-weight:800;">Braised Short Ribs</h3>
+            <p style="color:#C1BCA0;">Provenance: Nonna&rsquo;s recipe card, 1987</p>
+          </div>
+          <div class="link-row"><a href="#" style="color:#8FAE83;">View full version history →</a></div>
+          <table class="contrast">
+            <tr><td>text-primary / bg-primary</td><td class="pass">14.7:1 ✓ AA</td></tr>
+            <tr><td>text-secondary / bg-primary</td><td class="pass">9.2:1 ✓ AA</td></tr>
+            <tr><td>accent (as text) / bg-primary</td><td class="pass">7.2:1 ✓ AA</td></tr>
+            <tr><td>text-inverse / accent</td><td class="pass">7.2:1 ✓ AA</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= OPTION C ============================= -->
+<section class="option" id="option-c" style="--font-display:'Playfair Display',ui-serif,Cambria,'Times New Roman',serif; --font-body:system-ui,sans-serif;">
+  <div class="option-head">
+    <h2>C — Deep Plum &amp; Gold</h2>
+    <p>A richer, more saturated jammy plum with a warm gold for highlights, on a blush-tinted warm white. High-contrast elegant serif headings (Playfair Display) push this toward "special-occasion cookbook" rather than everyday recipe box — still warm, but more considered/dressed-up than A or B.</p>
+  </div>
+
+  <div class="toggle-demo" id="td-c" data-theme="light" style="--td-bg-light:#FAF6F3; --td-text-light:#2A1420; --td-bg-dark:#1A0F16; --td-text-dark:#F2E6ED; --td-brand:#B86FA0; --td-accent-light:#6E2A52; --td-btn-text-light:#FFFFFF; --td-accent-dark:#B86FA0; --td-btn-text-dark:#1A0F16; --font-display:'Playfair Display',ui-serif,Cambria,'Times New Roman',serif; --font-body:system-ui,sans-serif;">
+    <div class="td-bar">
+      <span class="td-wordmark">Damn That&rsquo;s Good</span>
+      <button class="td-switch" onclick="toggleTheme('td-c')" aria-label="Toggle light/dark theme">
+        <span>Light</span><span class="track"><span class="knob"></span></span><span>Dark</span>
+      </button>
+    </div>
+    <div class="td-body">
+      <button class="td-btn">Save recipe</button>
+      <p class="td-note">Wordmark: one fixed <code>--color-brand</code> (#B86FA0 — the brighter of the two plums, the only one that clears 3:1 on <em>both</em> backgrounds) in both themes. Button: theme-tuned <code>--color-accent</code>, darker in light mode, for AA text contrast.</p>
+    </div>
+  </div>
+
+  <div class="demo-modes">
+
+    <!-- LIGHT -->
+    <div class="mode-panel" style="background:#FAF6F3; color:#2A1420; --radius:6px; --radius-lg:10px;">
+      <div class="mode-label">Light</div>
+      <div class="swatches" style="background:#FAF6F3;">
+        <div class="swatch" style="background:#FAF6F3; color:#2A1420;"><span class="name">bg-primary</span><span class="hex">#FAF6F3</span></div>
+        <div class="swatch" style="background:#F0E4DE; color:#2A1420;"><span class="name">bg-tertiary</span><span class="hex">#F0E4DE</span></div>
+        <div class="swatch" style="background:#2A1420; color:#F2E6ED;"><span class="name">text-primary</span><span class="hex">#2A1420</span></div>
+        <div class="swatch" style="background:#6B4A5C; color:#fff;"><span class="name">text-secondary</span><span class="hex">#6B4A5C</span></div>
+        <div class="swatch" style="background:#6E2A52; color:#fff;"><span class="name">accent</span><span class="hex">#6E2A52</span></div>
+        <div class="swatch" style="background:#B8862E; color:#fff;"><span class="name">accent-secondary (gold)</span><span class="hex">#B8862E</span></div>
+      </div>
+      <div class="panel-body">
+        <div class="composition">
+          <div class="type-scale">
+            <div class="type-display">Damn That&rsquo;s Good</div>
+            <div class="type-h1">Grandma&rsquo;s Sunday Pot Roast</div>
+            <div class="type-h2">Ingredients</div>
+            <div class="type-body">Sear the chuck roast on all sides in a hot Dutch oven, then set aside. Soften the onions and carrots in the same fat before deglazing with red wine.</div>
+            <div class="type-small">Serves 6 · from Mom&rsquo;s recipe box</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" style="background:#6E2A52; color:#fff;">Save recipe</button>
+            <button class="btn btn-secondary" style="color:#6E2A52;">Add to collection</button>
+            <button class="btn btn-ghost" style="color:#6B4A5C;">Cancel</button>
+          </div>
+          <div class="card" style="background:#F0E4DE; border:1px solid #E4D0D8;">
+            <span class="tag" style="background:#F2E0C3; color:#8A6414;">weeknight</span>
+            <span class="tag" style="background:#E8D3DF; color:#6E2A52;">braise</span>
+            <h3>Braised Short Ribs</h3>
+            <p style="color:#6B4A5C;">Provenance: Nonna&rsquo;s recipe card, 1987</p>
+          </div>
+          <div class="link-row"><a href="#" style="color:#6E2A52;">View full version history →</a></div>
+          <table class="contrast">
+            <tr><td>text-primary / bg-primary</td><td class="pass">16.0:1 ✓ AA</td></tr>
+            <tr><td>text-secondary / bg-primary</td><td class="pass">7.1:1 ✓ AA</td></tr>
+            <tr><td>accent (as text) / bg-primary</td><td class="pass">9.2:1 ✓ AA</td></tr>
+            <tr><td>text-inverse (white) / accent</td><td class="pass">9.9:1 ✓ AA</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DARK -->
+    <div class="mode-panel" style="background:#1A0F16; color:#F2E6ED; --radius:6px; --radius-lg:10px;">
+      <div class="mode-label">Dark</div>
+      <div class="swatches" style="background:#1A0F16;">
+        <div class="swatch" style="background:#1A0F16; color:#F2E6ED;"><span class="name">bg-primary</span><span class="hex">#1A0F16</span></div>
+        <div class="swatch" style="background:#2D1C29; color:#F2E6ED;"><span class="name">bg-tertiary</span><span class="hex">#2D1C29</span></div>
+        <div class="swatch" style="background:#F2E6ED; color:#1A0F16;"><span class="name">text-primary</span><span class="hex">#F2E6ED</span></div>
+        <div class="swatch" style="background:#C7A8BC; color:#1A0F16;"><span class="name">text-secondary</span><span class="hex">#C7A8BC</span></div>
+        <div class="swatch" style="background:#B86FA0; color:#1A0F16;"><span class="name">accent</span><span class="hex">#B86FA0</span></div>
+        <div class="swatch" style="background:#3A2434; color:#F2E6ED;"><span class="name">accent-muted</span><span class="hex">#3A2434</span></div>
+      </div>
+      <div class="panel-body">
+        <div class="composition">
+          <div class="type-scale">
+            <div class="type-display">Damn That&rsquo;s Good</div>
+            <div class="type-h1">Grandma&rsquo;s Sunday Pot Roast</div>
+            <div class="type-h2">Ingredients</div>
+            <div class="type-body">Sear the chuck roast on all sides in a hot Dutch oven, then set aside. Soften the onions and carrots in the same fat before deglazing with red wine.</div>
+            <div class="type-small">Serves 6 · from Mom&rsquo;s recipe box</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn" style="background:#B86FA0; color:#1A0F16;">Save recipe</button>
+            <button class="btn btn-secondary" style="color:#B86FA0;">Add to collection</button>
+            <button class="btn btn-ghost" style="color:#C7A8BC;">Cancel</button>
+          </div>
+          <div class="card" style="background:#2D1C29; border:1px solid #3D2837;">
+            <span class="tag" style="background:#3A2434; color:#D9A9C4;">weeknight</span>
+            <span class="tag" style="background:#3A2434; color:#D9A9C4;">braise</span>
+            <h3>Braised Short Ribs</h3>
+            <p style="color:#C7A8BC;">Provenance: Nonna&rsquo;s recipe card, 1987</p>
+          </div>
+          <div class="link-row"><a href="#" style="color:#B86FA0;">View full version history →</a></div>
+          <table class="contrast">
+            <tr><td>text-primary / bg-primary</td><td class="pass">15.4:1 ✓ AA</td></tr>
+            <tr><td>text-secondary / bg-primary</td><td class="pass">8.7:1 ✓ AA</td></tr>
+            <tr><td>accent (as text) / bg-primary</td><td class="pass">5.2:1 ✓ AA</td></tr>
+            <tr><td>text-inverse / accent</td><td class="pass">5.2:1 ✓ AA</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function toggleTheme(id) {
+    var el = document.getElementById(id);
+    el.dataset.theme = el.dataset.theme === 'light' ? 'dark' : 'light';
+  }
+
+  // Screenshot-capture aid only: isolate one option per #hash so a
+  // viewport-sized headless screenshot captures it in full.
+  (function () {
+    var hash = location.hash.replace('#', '');
+    if (!hash) return;
+    document.querySelectorAll('section.option').forEach(function (s) {
+      if (s.id !== hash) s.style.display = 'none';
+    });
+  })();
+</script>
+</body>
+</html>

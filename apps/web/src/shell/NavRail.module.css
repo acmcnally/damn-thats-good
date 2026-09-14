@@ -1,0 +1,136 @@
+.rail {
+  grid-area: nav;
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.createWrap {
+  position: relative;
+  margin-bottom: var(--space-2);
+}
+
+.create {
+  position: relative;
+  width: 100%;
+  min-height: 44px;
+  padding: 11px var(--space-4);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.create:hover {
+  background: var(--color-accent-hover);
+}
+
+/* The word "Create" is the centered element; the + sits to its left without
+   shifting it (owner feedback). */
+.createAffix {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+}
+
+/* Create menu overhangs the rail into the content pane, with a heavier shadow so
+   it reads as floating above the rail rather than lost inside it (owner
+   feedback). */
+.createMenu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 30;
+  width: 248px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-3);
+  padding: var(--space-2);
+  transform-origin: top left;
+  animation: create-pop var(--dur-quick) var(--ease-out);
+}
+
+@keyframes create-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.createMenuItem {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px var(--space-3);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.createMenuItem:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-md);
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.navItem:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.navItemActive {
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+}
+
+.navIcon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-3) var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .createMenu {
+    animation: none;
+  }
+}

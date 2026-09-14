@@ -4,6 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Damn That's Good</title>
+    <!--
+      FOUC guard. Blocking, before the module bundle: reads only localStorage
+      and prefers-color-scheme, writes data-palette / data-theme on <html> so
+      the first paint is already themed. AppearanceProvider takes over after
+      mount. index.html is promoted across environments unchanged (ADR-0010) —
+      safe: no env-specific or build-time content here.
+
+      The palette allow-list is duplicated in src/appearance/types.ts (PALETTES);
+      keep the two in sync — a pre-module inline script cannot import.
+
+      CSP: this inline script forecloses a nonce-free strict CSP.
+      TODO: DAMN-30 — ship this script's sha256 hash in script-src (ADR-0004).
+    -->
+    <script>
+      // Always leave <html> with a valid data-palette, even if anything below
+      // throws — every color token is scoped to :root[data-palette=...].
+      document.documentElement.dataset.palette = 'terracotta';
+      try {
+        var p = JSON.parse(localStorage.getItem('dtg.appearance') || '{}') || {};
+        var pal = ['terracotta', 'sage', 'plum'].indexOf(p.palette) >= 0 ? p.palette : 'terracotta';
+        var dark =
+          p.mode === 'dark' ||
+          (p.mode == null && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.palette = pal;
+        if (dark) document.documentElement.dataset.theme = 'dark';
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

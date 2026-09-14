@@ -1,0 +1,105 @@
+/*
+ * Global base styles. Imported once from main.tsx, alongside tokens.css. Not a
+ * CSS Module; every component still colocates its own *.module.css.
+ */
+
+/*
+ * Self-hosted Rubik (variable, latin only). @fontsource-variable/rubik ships the
+ * subset .woff2 files but no latin-only stylesheet, so the @font-face is written
+ * here by hand pointing at the single latin file — nothing else is bundled, and
+ * there is no runtime request to Google Fonts (ADR-0004). The unicode-range is
+ * copied from the package's own index.css (latin block).
+ */
+@font-face {
+  font-family: 'Rubik Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 900;
+  src: url('@fontsource-variable/rubik/files/rubik-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* data-palette lands here from the FOUC script; keep a sane default for the
+     split second before it runs (and for tests that mount a component tree
+     without index.html). */
+  background: var(--color-bg-primary, #fbf5ec);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+/* Live theme repaint — AppearanceProvider adds `.theme-transition` to <html>
+   for ~250ms around a palette / mode swap so it cross-fades instead of
+   snapping. Scoped to that window so it never lags ordinary hover / active /
+   focus color feedback, and load carries no transition (the class isn't there
+   yet). */
+:root.theme-transition,
+:root.theme-transition *,
+:root.theme-transition *::before,
+:root.theme-transition *::after {
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out) !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
