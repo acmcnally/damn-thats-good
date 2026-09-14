@@ -17,19 +17,23 @@
   padding: var(--space-6) var(--space-7);
 }
 
+/* 640px is also NavRail.tsx's cutoff for which nav markup mounts
+   (shell/breakpoints.ts, MOBILE_MEDIA_QUERY) — CSS can't import that
+   constant, so keep this value in sync with it by hand. */
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;
-    grid-template-rows: var(--topbar-height) auto 1fr;
+    grid-template-rows: var(--topbar-height) 1fr;
     grid-template-areas:
       'topbar'
-      'nav'
       'main';
-    height: auto;
-    min-height: 100dvh;
   }
 
   .main {
     padding: var(--space-5) var(--space-4);
+    /* Clears the fixed Create FAB (--fab-size / --fab-offset-bottom, shared
+       with NavRail.module.css via tokens.css) plus a margin, so scrolled-to-
+       bottom content is never tucked under it or the tab bar. */
+    padding-bottom: calc(var(--fab-offset-bottom) + var(--fab-size) + var(--space-4));
   }
 }

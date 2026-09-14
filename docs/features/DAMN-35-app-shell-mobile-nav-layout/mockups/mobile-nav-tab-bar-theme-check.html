@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-35 — bottom tab bar, light vs dark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     CHROME (not part of the design — review strip + frame)
+     ============================================================ */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #0d1117; font-family: system-ui, sans-serif; }
+  .mock-meta {
+    padding: 10px 16px; background: #0d1117; color: #c9d1d9;
+    display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap;
+    font: 13px/1.4 system-ui, sans-serif; border-bottom: 1px solid #30363d;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .mock-meta strong { font-weight: 600; }
+  .mock-meta span { color: #8b949e; }
+  .frame-wrap {
+    padding: 32px 20px 60px; display: flex; justify-content: center;
+    gap: 48px; flex-wrap: wrap; align-items: flex-start;
+  }
+  /* Each column's own surround now matches that theme's real --color-bg-primary —
+     a truer preview of the actual page background, not just the neutral mock
+     gallery chrome. Padded out to the edges so it reads as "the page", not a card. */
+  .col {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 24px 24px 40px; border-radius: 16px;
+  }
+  .col.light-col { background: #fbf5ec; }
+  .col.dark-col { background: #1c1410; }
+  .col.light-col h2 { color: #2a1d14; }
+  .col.dark-col h2 { color: #f3e7da; }
+  .col h2 { font: 600 15px/1.3 system-ui, sans-serif; margin: 0; text-align: center; max-width: 375px; }
+  .phone {
+    width: 375px; height: 812px; border-radius: 40px; background: #000;
+    padding: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .screen {
+    width: 100%; height: 100%; border-radius: 30px; overflow: hidden;
+    position: relative;
+  }
+
+  /* ============================================================
+     DESIGN TOKENS — copied from apps/web/src/styles/tokens.css
+     (Terracotta, structural + light + dark). Snapshot for this mock
+     only — apps/web/src/styles/tokens.css remains the source of truth.
+     ============================================================ */
+  .app {
+    --font-sans: 'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-base: 15px;
+    --text-lg: 18px; --text-xl: 22px;
+    --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --space-5: 24px; --space-6: 32px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 18px; --radius-full: 999px;
+    --shadow-3: 0 16px 40px rgba(0, 0, 0, .22), 0 4px 12px rgba(0, 0, 0, .14);
+    --dur-quick: 130ms; --ease-out: cubic-bezier(.16, 1, .3, 1);
+    --topbar-height: 56px;
+
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    background: var(--color-bg-primary);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Terracotta — light */
+  .app.light {
+    --color-bg-primary: #fbf5ec;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #f2e6d3;
+    --color-text-primary: #2a1d14;
+    --color-text-secondary: #6e5a47;
+    --color-text-tertiary: #a5927c;
+    --color-border: #e7dac6;
+    --color-border-strong: #d8c4a8;
+    --color-accent: #b34a24;
+    --color-accent-muted: #f1dcc9;
+    --color-text-on-accent: #ffffff;
+  }
+
+  /* Terracotta — dark */
+  .app.dark {
+    --color-bg-primary: #1c1410;
+    --color-bg-secondary: #241a14;
+    --color-bg-tertiary: #2e2119;
+    --color-text-primary: #f3e7da;
+    --color-text-secondary: #c7b4a0;
+    --color-text-tertiary: #8c7663;
+    --color-border: #3a2a1e;
+    --color-border-strong: #4c3826;
+    --color-accent: #e07a4a;
+    --color-accent-muted: #3d2418;
+    --color-text-on-accent: #1c1410;
+  }
+
+  .icon { width: 20px; height: 20px; flex: none; }
+
+  .topbar {
+    height: var(--topbar-height); flex: none; display: flex; align-items: center;
+    gap: var(--space-3); padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border); background: var(--color-bg-secondary);
+  }
+  .search {
+    flex: 1; display: flex; align-items: center; gap: var(--space-2);
+    background: var(--color-bg-primary); border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full); padding: 7px var(--space-3);
+    color: var(--color-text-tertiary); font-size: var(--text-sm); min-width: 0;
+  }
+  .search .icon { width: 15px; height: 15px; }
+  .search span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: var(--radius-full); flex: none;
+    background: var(--color-accent-muted); color: var(--color-accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .gear { width: 30px; height: 30px; border-radius: var(--radius-full); flex: none;
+    display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); }
+
+  .content { flex: 1; overflow: auto; padding: var(--space-4); }
+  .eyebrow { font: var(--weight-semibold) var(--text-xs)/1 var(--font-sans); letter-spacing: .04em;
+    text-transform: uppercase; color: var(--color-text-tertiary); margin: 0 0 var(--space-3); }
+  .card {
+    background: var(--color-bg-secondary); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-3);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .card h3 { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .card p { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+  /* ---- finalized: bottom tab bar + overlapping Create FAB ---- */
+  .tabbar {
+    flex: none; height: 62px; display: flex; align-items: stretch;
+    border-top: 1px solid var(--color-border); background: var(--color-bg-secondary);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; background: none; border: none; color: var(--color-text-tertiary);
+    font: var(--weight-medium) 11px/1 var(--font-sans); cursor: pointer;
+  }
+  .tab.active { color: var(--color-accent); }
+  .tab .icon { width: 22px; height: 22px; }
+  .fab-a {
+    position: absolute; right: var(--space-4); bottom: 53px;
+    width: 56px; height: 56px; border-radius: var(--radius-full); border: none;
+    background: var(--color-accent); color: var(--color-text-on-accent);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    z-index: 20;
+  }
+  .fab-a .icon { width: 24px; height: 24px; }
+
+  /* Create popover — same element/content as the desktop rail's .createMenu
+     (NavRail.module.css), repositioned to open upward from the FAB instead of
+     downward from a rail button. Anchored to the same right edge as the FAB. */
+  .fab-create-menu {
+    position: absolute; right: var(--space-4); bottom: calc(53px + 56px + var(--space-2));
+    z-index: 25; width: 248px;
+    background: var(--color-bg-secondary); border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-3);
+    padding: var(--space-2); transform-origin: bottom right;
+    display: none;
+  }
+  .fab-create-menu.open {
+    display: block;
+    animation: fab-create-pop var(--dur-quick) var(--ease-out);
+  }
+  @keyframes fab-create-pop {
+    from { opacity: 0; transform: scale(.96) translateY(6px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .fab-create-menu-item {
+    display: flex; width: 100%; align-items: center; gap: var(--space-3);
+    padding: 12px var(--space-3); border: none; background: transparent;
+    cursor: pointer; border-radius: var(--radius-sm);
+    font: var(--text-base)/1.2 var(--font-sans); color: var(--color-text-primary);
+    text-align: left;
+  }
+  .fab-create-menu-item:hover { background: var(--color-bg-tertiary); }
+  .fab-backdrop {
+    position: absolute; inset: 0; z-index: 15; display: none;
+  }
+  .fab-backdrop.open { display: block; }
+</style>
+</head>
+<body>
+
+<div class="mock-meta">
+  <strong>DAMN-35</strong>
+  <span>finalized bottom tab bar — Terracotta, light vs dark</span>
+  <span>375px viewport</span>
+</div>
+
+<div class="frame-wrap">
+
+  <div class="col light-col">
+    <h2>Light</h2>
+    <div class="phone">
+      <div class="screen">
+        <div class="app light">
+          <div class="topbar">
+            <div class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Search recipes…</span></div>
+            <div class="gear"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <div class="avatar"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          </div>
+
+          <div class="content">
+            <p class="eyebrow">Recipes</p>
+            <div class="card"><h3>Weeknight Chicken Tikka</h3><p>Serves 4 · Grandma's card</p></div>
+            <div class="card"><h3>Sourdough Boule</h3><p>Serves 8 · King Arthur Flour</p></div>
+            <div class="card"><h3>Miso-Butter Roast Chicken</h3><p>Serves 4 · Bon Appétit</p></div>
+            <div class="card"><h3>Smashed Cucumber Salad</h3><p>Serves 2 · Mom</p></div>
+            <div class="card"><h3>Weekend Pancakes</h3><p>Serves 4 · Family recipe</p></div>
+            <div class="card"><h3>Braised Short Ribs</h3><p>Serves 6 · Serious Eats</p></div>
+          </div>
+
+          <div class="fab-backdrop" id="backdrop-light" onclick="toggleCreate('light')"></div>
+
+          <div class="fab-create-menu" id="menu-light" role="group" aria-label="Create">
+            <button type="button" class="fab-create-menu-item">Recipe</button>
+            <button type="button" class="fab-create-menu-item">Shopping list</button>
+          </div>
+
+          <button class="fab-a" id="fab-light" aria-label="Create" aria-haspopup="true" aria-expanded="false" onclick="toggleCreate('light')">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+
+          <nav class="tabbar" aria-label="Primary">
+            <button class="tab active">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              Recipes
+            </button>
+            <button class="tab">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              Shopping
+            </button>
+            <button class="tab">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+              Data
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col dark-col">
+    <h2>Dark</h2>
+    <div class="phone">
+      <div class="screen">
+        <div class="app dark">
+          <div class="topbar">
+            <div class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Search recipes…</span></div>
+            <div class="gear"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <div class="avatar"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          </div>
+
+          <div class="content">
+            <p class="eyebrow">Recipes</p>
+            <div class="card"><h3>Weeknight Chicken Tikka</h3><p>Serves 4 · Grandma's card</p></div>
+            <div class="card"><h3>Sourdough Boule</h3><p>Serves 8 · King Arthur Flour</p></div>
+            <div class="card"><h3>Miso-Butter Roast Chicken</h3><p>Serves 4 · Bon Appétit</p></div>
+            <div class="card"><h3>Smashed Cucumber Salad</h3><p>Serves 2 · Mom</p></div>
+            <div class="card"><h3>Weekend Pancakes</h3><p>Serves 4 · Family recipe</p></div>
+            <div class="card"><h3>Braised Short Ribs</h3><p>Serves 6 · Serious Eats</p></div>
+          </div>
+
+          <div class="fab-backdrop" id="backdrop-dark" onclick="toggleCreate('dark')"></div>
+
+          <div class="fab-create-menu" id="menu-dark" role="group" aria-label="Create">
+            <button type="button" class="fab-create-menu-item">Recipe</button>
+            <button type="button" class="fab-create-menu-item">Shopping list</button>
+          </div>
+
+          <button class="fab-a" id="fab-dark" aria-label="Create" aria-haspopup="true" aria-expanded="false" onclick="toggleCreate('dark')">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+
+          <nav class="tabbar" aria-label="Primary">
+            <button class="tab active">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              Recipes
+            </button>
+            <button class="tab">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              Shopping
+            </button>
+            <button class="tab">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+              Data
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleCreate(variant) {
+    const menu = document.getElementById('menu-' + variant);
+    const backdrop = document.getElementById('backdrop-' + variant);
+    const fab = document.getElementById('fab-' + variant);
+    const open = !menu.classList.contains('open');
+    menu.classList.toggle('open', open);
+    backdrop.classList.toggle('open', open);
+    fab.setAttribute('aria-expanded', String(open));
+  }
+</script>
+
+</body>
+</html>

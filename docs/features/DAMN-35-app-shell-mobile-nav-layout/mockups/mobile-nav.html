@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-35 — mobile nav pattern options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     CHROME (not part of the design — review strip + frame)
+     ============================================================ */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #0d1117; font-family: system-ui, sans-serif; }
+  .mock-meta {
+    padding: 10px 16px; background: #0d1117; color: #c9d1d9;
+    display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap;
+    font: 13px/1.4 system-ui, sans-serif; border-bottom: 1px solid #30363d;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .mock-meta strong { font-weight: 600; }
+  .mock-meta span { color: #8b949e; }
+  .frame-wrap {
+    padding: 32px 20px 60px; display: flex; justify-content: center;
+    gap: 48px; flex-wrap: wrap; align-items: flex-start;
+  }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .col h2 { color: #e6edf3; font: 600 15px/1.3 system-ui, sans-serif; margin: 0; text-align: center; max-width: 375px; }
+  .col p.note { color: #8b949e; font: 12.5px/1.5 system-ui, sans-serif; margin: 0; text-align: center; max-width: 375px; }
+  .phone {
+    width: 375px; height: 812px; border-radius: 40px; background: #000;
+    padding: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .screen {
+    width: 100%; height: 100%; border-radius: 30px; overflow: hidden;
+    position: relative;
+  }
+
+  /* ============================================================
+     DESIGN TOKENS — copied from apps/web/src/styles/tokens.css
+     (Terracotta, light). Do not treat this block as the source of
+     truth — it is a snapshot for this mock only.
+     ============================================================ */
+  .app {
+    --font-sans: 'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-base: 15px;
+    --text-lg: 18px; --text-xl: 22px;
+    --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --space-5: 24px; --space-6: 32px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 18px; --radius-full: 999px;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.09);
+    --shadow-2: 0 6px 24px rgba(0,0,0,.14);
+    --shadow-3: 0 16px 40px rgba(0,0,0,.22), 0 4px 12px rgba(0,0,0,.14);
+    --dur-quick: 130ms; --dur-base: 180ms; --ease-out: cubic-bezier(.16,1,.3,1);
+    --topbar-height: 56px;
+
+    --color-bg-primary: #fbf5ec;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #f2e6d3;
+    --color-text-primary: #2a1d14;
+    --color-text-secondary: #6e5a47;
+    --color-text-tertiary: #a5927c;
+    --color-border: #e7dac6;
+    --color-border-strong: #d8c4a8;
+    --color-accent: #b34a24;
+    --color-accent-hover: #963b1b;
+    --color-accent-muted: #f1dcc9;
+    --color-text-on-accent: #ffffff;
+
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    background: var(--color-bg-primary);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .icon { width: 20px; height: 20px; flex: none; }
+
+  /* ---- top bar (shared by both directions, mirrors the real TopBar) ---- */
+  .topbar {
+    height: var(--topbar-height); flex: none; display: flex; align-items: center;
+    gap: var(--space-3); padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border); background: var(--color-bg-secondary);
+  }
+  .search {
+    flex: 1; display: flex; align-items: center; gap: var(--space-2);
+    background: var(--color-bg-primary); border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full); padding: 7px var(--space-3);
+    color: var(--color-text-tertiary); font-size: var(--text-sm); min-width: 0;
+  }
+  .search .icon { width: 15px; height: 15px; }
+  .search span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: var(--radius-full); flex: none;
+    background: var(--color-accent-muted); color: var(--color-accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .gear { width: 30px; height: 30px; border-radius: var(--radius-full); flex: none;
+    display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); }
+
+  /* ---- content: recipe list, shared ---- */
+  .content { flex: 1; overflow: auto; padding: var(--space-4); }
+  .eyebrow { font: var(--weight-semibold) var(--text-xs)/1 var(--font-sans); letter-spacing: .04em;
+    text-transform: uppercase; color: var(--color-text-tertiary); margin: 0 0 var(--space-3); }
+  .card {
+    background: var(--color-bg-secondary); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-3);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .card h3 { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .card p { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+  /* ============================================================
+     DIRECTION A — bottom tab bar + overlapping Create FAB
+     ============================================================ */
+  .tabbar {
+    flex: none; height: 62px; display: flex; align-items: stretch;
+    border-top: 1px solid var(--color-border); background: var(--color-bg-secondary);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; background: none; border: none; color: var(--color-text-tertiary);
+    font: var(--weight-medium) 11px/1 var(--font-sans); cursor: pointer;
+  }
+  .tab.active { color: var(--color-accent); }
+  .tab .icon { width: 22px; height: 22px; }
+  .fab-a {
+    position: absolute; right: var(--space-4); bottom: 53px;
+    width: 56px; height: 56px; border-radius: var(--radius-full); border: none;
+    background: var(--color-accent); color: var(--color-text-on-accent);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .fab-a .icon { width: 24px; height: 24px; }
+
+  /* ============================================================
+     DIRECTION B — floating drawer trigger + Create FAB, no bar
+     ============================================================ */
+  .fab-stack { position: absolute; right: var(--space-4); bottom: var(--space-5);
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+  .fab-create {
+    width: 56px; height: 56px; border-radius: var(--radius-full);
+    background: var(--color-accent); color: var(--color-text-on-accent);
+    box-shadow: var(--shadow-2); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none;
+  }
+  .fab-menu {
+    width: 46px; height: 46px; border-radius: var(--radius-full);
+    background: var(--color-bg-secondary); color: var(--color-text-primary);
+    border: 1px solid var(--color-border-strong); box-shadow: var(--shadow-1);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .fab-create .icon { width: 24px; height: 24px; }
+  .fab-menu .icon { width: 20px; height: 20px; transition: transform var(--dur-base) var(--ease-out); }
+  .fab-menu.open .icon { transform: rotate(90deg); }
+
+  .backdrop {
+    position: absolute; inset: 0; background: rgba(42, 29, 20, .35);
+    opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease-out);
+  }
+  .backdrop.open { opacity: 1; pointer-events: auto; }
+
+  .drawer {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--color-bg-secondary); border-radius: 22px 22px 0 0;
+    box-shadow: var(--shadow-3); padding: var(--space-3) var(--space-3) var(--space-6);
+    transform: translateY(100%); transition: transform var(--dur-base) var(--ease-out);
+  }
+  .drawer.open { transform: translateY(0); }
+  .drawer-handle { width: 36px; height: 4px; border-radius: var(--radius-full);
+    background: var(--color-border-strong); margin: var(--space-2) auto var(--space-4); }
+  .drawer-item {
+    display: flex; align-items: center; gap: var(--space-3); width: 100%;
+    padding: 13px var(--space-3); border-radius: var(--radius-md); border: none;
+    background: none; color: var(--color-text-primary); font: var(--weight-medium) var(--text-base)/1 var(--font-sans);
+    cursor: pointer; text-align: left;
+  }
+  .drawer-item.active { background: var(--color-accent-muted); color: var(--color-accent); }
+  .drawer-item .icon { width: 20px; height: 20px; color: var(--color-text-secondary); }
+  .drawer-item.active .icon { color: var(--color-accent); }
+  .drawer-divider { height: 1px; background: var(--color-border); margin: var(--space-2) var(--space-3); }
+</style>
+</head>
+<body>
+
+<div class="mock-meta">
+  <strong>DAMN-35</strong>
+  <span>mobile nav pattern — both directions, interactive (tap the tabs / FABs)</span>
+  <span>Terracotta · light · 375px viewport</span>
+</div>
+
+<div class="frame-wrap">
+
+  <div class="col">
+    <h2>A — Bottom tab bar</h2>
+    <p class="note">Recipes / Shopping Lists / Data pinned to the bottom edge, always visible. Create is a FAB that overlaps the bar's top edge, top-right of the three tabs.</p>
+    <div class="phone">
+      <div class="screen">
+        <div class="app">
+          <div class="topbar">
+            <div class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Search recipes…</span></div>
+            <div class="gear"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <div class="avatar"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          </div>
+
+          <div class="content">
+            <p class="eyebrow">Recipes</p>
+            <div class="card"><h3>Weeknight Chicken Tikka</h3><p>Serves 4 · Grandma's card</p></div>
+            <div class="card"><h3>Sourdough Boule</h3><p>Serves 8 · King Arthur Flour</p></div>
+            <div class="card"><h3>Miso-Butter Roast Chicken</h3><p>Serves 4 · Bon Appétit</p></div>
+            <div class="card"><h3>Smashed Cucumber Salad</h3><p>Serves 2 · Mom</p></div>
+            <div class="card"><h3>Weekend Pancakes</h3><p>Serves 4 · Family recipe</p></div>
+            <div class="card"><h3>Braised Short Ribs</h3><p>Serves 6 · Serious Eats</p></div>
+          </div>
+
+          <button class="fab-a" aria-label="Create">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+
+          <nav class="tabbar" aria-label="Primary">
+            <button class="tab active" onclick="setActiveTab(this)">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              Recipes
+            </button>
+            <button class="tab" onclick="setActiveTab(this)">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              Shopping
+            </button>
+            <button class="tab" onclick="setActiveTab(this)">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+              Data
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <h2>B — Floating drawer</h2>
+    <p class="note">No persistent bar — full-height content. A menu FAB (bottom-right) opens a bottom-sheet drawer listing Recipes / Shopping Lists / Data. Create is a separate, primary FAB stacked above it.</p>
+    <div class="phone">
+      <div class="screen">
+        <div class="app">
+          <div class="topbar">
+            <div class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Search recipes…</span></div>
+            <div class="gear"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <div class="avatar"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          </div>
+
+          <div class="content" style="padding-bottom: 100px;">
+            <p class="eyebrow">Recipes</p>
+            <div class="card"><h3>Weeknight Chicken Tikka</h3><p>Serves 4 · Grandma's card</p></div>
+            <div class="card"><h3>Sourdough Boule</h3><p>Serves 8 · King Arthur Flour</p></div>
+            <div class="card"><h3>Miso-Butter Roast Chicken</h3><p>Serves 4 · Bon Appétit</p></div>
+            <div class="card"><h3>Smashed Cucumber Salad</h3><p>Serves 2 · Mom</p></div>
+            <div class="card"><h3>Weekend Pancakes</h3><p>Serves 4 · Family recipe</p></div>
+            <div class="card"><h3>Braised Short Ribs</h3><p>Serves 6 · Serious Eats</p></div>
+          </div>
+
+          <div class="backdrop" id="backdrop-b" onclick="closeDrawer()"></div>
+
+          <div class="fab-stack">
+            <button class="fab-create" aria-label="Create">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </button>
+            <button class="fab-menu" id="menu-fab" aria-label="Open navigation" onclick="toggleDrawer()">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+            </button>
+          </div>
+
+          <div class="drawer" id="drawer-b">
+            <div class="drawer-handle"></div>
+            <button class="drawer-item active" onclick="setActiveDrawerItem(this)">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              Recipes
+            </button>
+            <button class="drawer-item" onclick="setActiveDrawerItem(this)">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              Shopping Lists
+            </button>
+            <div class="drawer-divider"></div>
+            <button class="drawer-item" onclick="setActiveDrawerItem(this)">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+              Data
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function setActiveTab(el) {
+    el.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+  function setActiveDrawerItem(el) {
+    el.parentElement.querySelectorAll('.drawer-item').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    closeDrawer();
+  }
+  function toggleDrawer() {
+    const drawer = document.getElementById('drawer-b');
+    const backdrop = document.getElementById('backdrop-b');
+    const fab = document.getElementById('menu-fab');
+    const open = !drawer.classList.contains('open');
+    drawer.classList.toggle('open', open);
+    backdrop.classList.toggle('open', open);
+    fab.classList.toggle('open', open);
+  }
+  function closeDrawer() {
+    document.getElementById('drawer-b').classList.remove('open');
+    document.getElementById('backdrop-b').classList.remove('open');
+    document.getElementById('menu-fab').classList.remove('open');
+  }
+</script>
+
+</body>
+</html>
