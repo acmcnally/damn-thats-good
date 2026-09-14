@@ -77,7 +77,8 @@ describe('<AuthGate>', () => {
 });
 
 describe('/callback', () => {
-  it('renders an inert spinner — no Splash, no navigation away', async () => {
+  it('renders an inert spinner while the exchange is in flight — no Splash, no navigation away', async () => {
+    mockAuth = { isLoading: true, user: null };
     renderRoute({ initialEntries: ['/callback?code=abc'] });
     expect(screen.getByText(/signing you in/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /log in/i })).not.toBeInTheDocument();
@@ -85,6 +86,14 @@ describe('/callback', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getByText(/signing you in/i)).toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it('shows a retry link if the exchange settles with no user (a failed code exchange)', () => {
+    mockAuth = { isLoading: false, user: null };
+    renderRoute({ initialEntries: ['/callback?code=abc'] });
+    expect(screen.getByText(/didn.t go through/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /try again/i })).toBeInTheDocument();
+    expect(screen.queryByText(/signing you in/i)).not.toBeInTheDocument();
   });
 
   it('redirects to / under the E2E bypass', async () => {
