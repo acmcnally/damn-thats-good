@@ -79,6 +79,12 @@
   /* ---- layout ---------------------------------------------------- */
   --rail-width: 232px;
   --topbar-height: 60px;
+
+  /* Mobile Create FAB (NavRail.module.css). AppShell.module.css's mobile
+     `.main` bottom padding derives from these via calc() so the fixed FAB's
+     footprint and the scroll clearance for it can't drift apart. */
+  --fab-size: 56px;
+  --fab-offset-bottom: 53px;
 }
 
 /* ===================================================================== */

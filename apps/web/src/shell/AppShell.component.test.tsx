@@ -3,7 +3,9 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { stubMatchMedia } from '../test/matchMedia';
 import { renderRoute } from '../test/renderRoute';
+import { MOBILE_MEDIA_QUERY } from './breakpoints';
 
 vi.mock('@workos-inc/authkit-react', () => ({
   useAuth: () => ({
@@ -102,5 +104,47 @@ describe('search placement (route-derived)', () => {
     });
     await waitFor(() => expect(searchbox().closest('header')).toBeNull());
     expect(screen.getAllByRole('searchbox', { name: /search recipes/i })).toHaveLength(1);
+  });
+});
+
+describe('mobile nav (bottom tab bar, <=640px)', () => {
+  it('renders the tab bar instead of the rail, with exactly one Primary landmark', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    renderRoute({ initialEntries: ['/'] });
+
+    expect(await screen.findAllByRole('navigation', { name: /primary/i })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /^recipes$/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^shopping$/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^data$/i })).toBeInTheDocument();
+    // Guards against a blanket matchMedia stub leaking into AppearanceProvider's
+    // own prefers-color-scheme query and forcing dark mode as a side effect.
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+
+  it('highlights the active tab', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    renderRoute({ initialEntries: ['/recipes'] });
+
+    await screen.findByRole('heading', { name: 'Recipes' });
+    expect(screen.getByRole('link', { name: /^recipes$/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  it('Create FAB opens the same inert popover as desktop, and closes without navigating', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    const { router } = renderRoute({ initialEntries: ['/'] });
+
+    const fab = await screen.findByRole('button', { name: /^create$/i });
+    expect(fab).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(fab);
+    expect(fab).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('group', { name: /create/i })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /^recipe$/i }));
+    expect(fab).toHaveAttribute('aria-expanded', 'false');
+    expect(router.state.location.pathname).toBe('/');
   });
 });

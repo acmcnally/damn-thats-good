@@ -45,13 +45,12 @@
   height: 18px;
 }
 
-/* Create menu overhangs the rail into the content pane, with a heavier shadow so
-   it reads as floating above the rail rather than lost inside it (owner
-   feedback). */
+/* Shared Create-menu look — desktop and mobile only differ in where they're
+   anchored (.createMenuDesktop / .createMenuMobile below), not in appearance.
+   Overhangs into the content pane, with a heavier shadow so it reads as
+   floating above the trigger rather than lost inside it (owner feedback). */
 .createMenu {
   position: absolute;
-  top: calc(100% + var(--space-2));
-  left: 0;
   z-index: 30;
   width: 248px;
   background: var(--color-bg-secondary);
@@ -59,6 +58,11 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-3);
   padding: var(--space-2);
+}
+
+.createMenuDesktop {
+  top: calc(100% + var(--space-2));
+  left: 0;
   transform-origin: top left;
   animation: create-pop var(--dur-quick) var(--ease-out);
 }
@@ -129,8 +133,111 @@
   margin: var(--space-3) var(--space-2);
 }
 
+/* ---- mobile: fixed bottom tab bar + overlapping Create FAB ------------- */
+/* Rendering (not just visibility) is JS-conditional on the same 640px cutoff
+   AppShell.module.css uses for its grid — see NavRail.tsx / useMediaQuery. */
+
+.tabbar {
+  /* The 62px tab row stays a constant height; a non-zero safe-area inset
+     (notched devices, once index.html gains viewport-fit=cover) *extends* the
+     bar downward via this padding rather than shrinking the tab content into
+     it — a fixed `height: 62px` here would have let the inset eat into the
+     icon+label area instead. */
+  --tabbar-safe-bottom: env(safe-area-inset-bottom, 0);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  height: calc(62px + var(--tabbar-safe-bottom));
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  padding-bottom: var(--tabbar-safe-bottom);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--color-text-tertiary);
+  font-weight: var(--weight-medium);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.tabActive {
+  color: var(--color-accent);
+}
+
+.tabIcon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.fabWrap {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--fab-offset-bottom);
+}
+
+.fab {
+  width: var(--fab-size);
+  height: var(--fab-size);
+  border: none;
+  border-radius: var(--radius-full);
+  /* The FAB's hit box is otherwise its full square bounding box, which sits
+     inside the Data tab's column and would steal the top ~9px of its tap
+     target (the FAB/tab-bar overlap). Clipping the hit-test region to the
+     same circle already drawn by border-radius fixes that without changing
+     how it looks. */
+  clip-path: circle(closest-side);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fab:hover {
+  background: var(--color-accent-hover);
+}
+
+.fabIcon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Same .createMenu look, opening upward from the FAB instead of downward from
+   the rail button — .fabWrap (not .fixed) is the positioning anchor so this
+   `calc()` resolves against the FAB, not the viewport. */
+.createMenuMobile {
+  bottom: calc(100% + var(--space-2));
+  right: 0;
+  transform-origin: bottom right;
+  animation: fab-create-pop var(--dur-quick) var(--ease-out);
+}
+
+@keyframes fab-create-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .createMenu {
+  .createMenuDesktop,
+  .createMenuMobile {
     animation: none;
   }
 }

@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { stubMatchMedia } from '../test/matchMedia';
 import { AppearanceProvider, useAppearance } from './AppearanceProvider';
 import { STORAGE_KEY } from './resolve';
 import type { AppearancePref } from './types';
@@ -8,22 +9,6 @@ import type { AppearancePref } from './types';
 function Probe() {
   const { mode, palette, effectiveMode } = useAppearance();
   return <output data-testid="probe">{`${mode ?? 'null'}/${palette}/${effectiveMode}`}</output>;
-}
-
-function stubMatchMedia(matches: boolean) {
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn().mockImplementation((query: string) => ({
-      matches,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  );
 }
 
 function seed(pref: Partial<AppearancePref>) {
