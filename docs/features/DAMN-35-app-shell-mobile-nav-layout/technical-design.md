@@ -83,3 +83,26 @@ Fresh-context subagent review against this doc, the mockups, the live `apps/web/
 4. The claim that the FAB "clears" the Data tab horizontally was wrong (its footprint sits fully inside Data's column; only the ~9px vertical overlap is genuinely small) — doc corrected, with a note to confirm real hit-testing in a rendered build rather than only the static mockup.
 
 Non-blocking notes also incorporated: `.main`'s bottom-padding estimate corrected to account for the FAB's actual extent; no data-model/API surface or cross-feature (DAMN-14, DAMN-6) collisions found.
+
+## Pre-PR diff review (`/code-review high`) — 10 findings, all applied
+
+Ran against the full branch diff before opening the PR. All incorporated directly:
+
+1. `.tabbar`'s safe-area padding was inside its fixed height, so a real inset (once `viewport-fit=cover` lands) would have shrunk the tab content instead of extending the bar — fixed to grow the bar's total height instead.
+2. The new `stubMatchMedia(true)` test stub blanket-matched every query, silently forcing `AppearanceProvider`'s dark-mode query to match too whenever the mobile breakpoint was stubbed — fixed with a query-scoped shared helper (`apps/web/src/test/matchMedia.ts`), with a regression assertion.
+3. `useMediaQuery` called `matchMedia` unguarded, unlike `AppearanceProvider`'s existing try/catch pattern — matched.
+4. The FAB's square hit box sat inside the Data tab's column (the ~9px overlap flagged in the design review) — fixed with `clip-path: circle(closest-side)` so the hit-test region matches the visual circle; no visual change.
+5. The Create popover could stay open across a live breakpoint flip (resize/rotation) since its single trigger ref would silently reattach to the other markup block — fixed with an effect that closes it on every `isMobile` change.
+6. The `640px` breakpoint was hardcoded independently in `NavRail.tsx` and `AppShell.module.css` — consolidated to one JS constant (`shell/breakpoints.ts`), cross-referenced by comment where CSS can't import it.
+7. + 9. (duplicate findings, same root cause as #2) `stubMatchMedia` was copy-pasted across three files — resolved by the same shared helper.
+8. The FAB's geometry (`NavRail.module.css`) and `.main`'s bottom-padding `calc()` (`AppShell.module.css`) were two independently hand-computed numbers linked only by a comment — consolidated into shared `tokens.css` custom properties (`--fab-size`, `--fab-offset-bottom`).
+10. `.createMenu` (desktop) and `.fabCreateMenu` (mobile) duplicated nearly all of their CSS — merged into one shared base class plus two small positional variants.
+
+Verified after fixes: 104/104 tests, typecheck, lint, and formatting clean; re-confirmed live against the running dev server (mobile viewport, both themes) with no visual regression from the CSS changes.
+
+## Post-implementation: mobile dev-server access + an auth robustness fix
+
+While setting up a way to view the dev build on a real phone (a Tailscale-isolated dev box + `tailscale serve`, tracked outside this repo), two small additions landed on this branch rather than as separate PRs (both trivial in size):
+
+- `apps/web/vite.config.ts` / `.env.example`: an optional, machine-specific `DEV_ALLOWED_HOSTS` env var for Vite's `server.allowedHosts`, so the dev server can be reached over a personal Tailscale hostname without committing that hostname anywhere.
+- `apps/web/src/routes/AuthCallback.tsx`: real sign-in testing surfaced a CORS misconfiguration in WorkOS, which in turn surfaced a latent bug — `/callback` never had an error path; any failed code exchange (this case, a network blip, or mobile Chrome discarding the PKCE `code_verifier` from `sessionStorage` while backgrounded for an OTP email) hung the "Signing you in…" spinner forever with zero feedback. Fixed to show a retry link once the SDK's `isLoading`/`user` state settles with no session — the only externally-observable signal available, since the SDK exposes no error field.
