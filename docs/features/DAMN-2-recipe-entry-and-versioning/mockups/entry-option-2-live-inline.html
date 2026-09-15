@@ -537,10 +537,11 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
 
   /** Opens the inline add/search control in place of the "+" button — filters
    * TAG_CANDIDATES as you type, or creates a new tag verbatim on Enter if nothing
-   * matches exactly. Stays open after each add (mousedown preventDefault keeps the
-   * input from blurring, and adding a tag only re-renders #tag-chips, never the
-   * input itself) so adding several tags in a row is one continuous motion, not a
-   * repeated open/close — and each one appears immediately, not only on close. */
+   * matches exactly. Closes itself back to the "+" button the instant a tag is
+   * successfully added — adding another is a deliberate second click, not
+   * something that happens by the input staying open underfoot. Duplicate/empty
+   * submissions don't count as an add, so the box stays open for those (mousedown
+   * preventDefault on suggestions keeps the input from blurring mid-click). */
   function openTagInput() {
     const list = document.getElementById('tag-list');
     list.querySelector('.tag-add-btn')?.remove();
@@ -552,7 +553,14 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
     const input = wrap.querySelector('.tag-input');
     input.focus();
 
+    // Removing wrap while input is focused fires a real native blur on it, which
+    // would otherwise run the blur handler below a second time (after its own
+    // setTimeout) and append a duplicate "+" button. One guard, checked by both
+    // paths, whichever gets there first.
+    let closed = false;
     function closeInput() {
+      if (closed) return;
+      closed = true;
       wrap.remove();
       showAddButton();
     }
@@ -566,9 +574,7 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
       }
       recipeTags.push(tag);
       renderChips();
-      input.value = '';
-      updateSuggestions();
-      input.focus();
+      closeInput();
     }
 
     function updateSuggestions() {
