@@ -1,12 +1,11 @@
 import { users } from '@dtg/db';
-import { startTestDb, type TestDb } from '@dtg/db/testing';
 import type { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { TOKEN_VERIFIER, type TokenVerifier } from '../auth/token-verifier';
-import { USER_LOOKUP, type UserLookup } from '../auth/user-lookup';
+import type { TokenVerifier } from '../auth/token-verifier';
+import type { UserLookup } from '../auth/user-lookup';
 import { DatabaseService } from '../database/database.service';
+import { bootstrapComponentApp } from '../test-support/component-app';
 import { BooksService } from './books.service';
 
 // Component tier (ADR-0012): real Nest DI + real Drizzle against a throwaway Postgres,
@@ -14,8 +13,8 @@ import { BooksService } from './books.service';
 // BooksService is resolved from the DI container directly instead of going through
 // supertest. WorkOS itself is never touched here — the stub verifier/lookup are only
 // present because AppModule wires AuthModule regardless of what this file exercises.
-let db: TestDb;
 let app: INestApplication;
+let teardown: () => Promise<void>;
 let booksService: BooksService;
 let databaseService: DatabaseService;
 
@@ -27,29 +26,17 @@ const stubUserLookup: UserLookup = {
 };
 
 beforeAll(async () => {
-  db = await startTestDb();
-  process.env.DATABASE_URL = db.url;
-  process.env.WORKOS_API_KEY = 'sk_test_component_tier';
-  process.env.WORKOS_CLIENT_ID = 'client_test_component_tier';
-
-  const { AppModule } = await import('../app.module');
-
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(TOKEN_VERIFIER)
-    .useValue(stubVerifier)
-    .overrideProvider(USER_LOOKUP)
-    .useValue(stubUserLookup)
-    .compile();
-  app = moduleRef.createNestApplication();
-  await app.init();
+  ({ app, teardown } = await bootstrapComponentApp({
+    tokenVerifier: stubVerifier,
+    userLookup: stubUserLookup,
+  }));
 
   booksService = app.get(BooksService);
   databaseService = app.get(DatabaseService);
 });
 
 afterAll(async () => {
-  await app?.close();
-  await db?.teardown();
+  await teardown?.();
 });
 
 /** `books.owner_id` is NOT NULL and FKs to `users.id` — provision a fresh owner per

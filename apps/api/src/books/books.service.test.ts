@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DatabaseService } from '../database/database.service';
-import { BooksService } from './books.service';
+import { BookProvisioningRaceError, BooksService } from './books.service';
 
 /** Minimal fluent mock of the two Drizzle chains `BooksService` uses:
  * `select().from().where().limit()` and
@@ -80,8 +80,8 @@ describe('BooksService', () => {
       });
       const service = new BooksService(database);
 
-      await expect(service.getOrCreateForOwner('u4')).rejects.toThrow(
-        'getOrCreateForOwner: insert conflicted but no row found',
+      await expect(service.getOrCreateForOwner('u4')).rejects.toBeInstanceOf(
+        BookProvisioningRaceError,
       );
     });
   });
