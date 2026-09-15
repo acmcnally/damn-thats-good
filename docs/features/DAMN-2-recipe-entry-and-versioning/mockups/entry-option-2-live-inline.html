@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-palette="terracotta">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -63,7 +63,14 @@
   }
   .token-field .overlay { color: var(--color-text-primary); pointer-events: none; }
   .token-field textarea.input-layer {
-    resize: none; background: transparent; color: transparent; caret-color: var(--color-text-primary);
+    resize: none; background: transparent;
+    /* Both are needed: WebKit (Safari) can otherwise let -webkit-text-fill-color's
+       UA default win over `color`, which also swallows the caret — not just the
+       text — since WebKit ties caret rendering to the fill color, not `color`
+       alone. Setting both explicitly is the standard fix for this exact
+       transparent-text-visible-caret technique. */
+    color: transparent; -webkit-text-fill-color: transparent;
+    caret-color: var(--color-text-primary);
   }
   .token-field textarea.input-layer:focus { outline: none; }
   .eline { min-height: 1.8em; }
