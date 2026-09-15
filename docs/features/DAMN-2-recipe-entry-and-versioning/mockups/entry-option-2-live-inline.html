@@ -90,6 +90,37 @@
   .eline.eheading { color: var(--color-accent); text-decoration: underline; text-decoration-color: var(--color-accent-muted); text-underline-offset: 3px; }
   .tok-amt { background: var(--color-accent-muted); color: var(--color-accent); }
 
+  /*
+   * The boundary handles live in their own layer, stacked above the textarea (last
+   * in DOM order, no z-index needed) rather than inside the overlay behind it.
+   * pointer-events:auto on a descendant only wins hit-testing within its own
+   * ancestor's stacking position — nesting a handle inside the overlay (which
+   * paints behind the textarea) can never lift it above the textarea, no matter
+   * what pointer-events says on the handle itself. The .handles layer is
+   * pointer-events:none everywhere except the individual handle strips, so
+   * clicking anywhere else still falls through to the real textarea underneath.
+   *
+   * Positioned at the exact character offset where "amount" ends and "ingredient"
+   * begins — even on lines with no recognized amount at all (boundary 0, right
+   * before the first word), so growing a highlight from nothing and resizing an
+   * existing one are the same gesture. Left at a low resting opacity rather than
+   * hover-only: now that it's not nested inside the line it decorates, there's no
+   * plain CSS descendant-hover to key off, and an always-faint marker is arguably
+   * better discoverability anyway.
+   */
+  .token-field .handles { pointer-events: none; }
+  .tok-handle {
+    position: absolute; width: 10px; transform: translateX(-5px);
+    cursor: ew-resize; pointer-events: auto; opacity: 0.28; transition: opacity var(--dur-quick) var(--ease-out);
+  }
+  .tok-handle::after {
+    content: ''; position: absolute; left: 50%; top: 12%; bottom: 12%; width: 2px;
+    transform: translateX(-50%); border-radius: 999px; background: var(--color-accent);
+  }
+  .tok-handle:hover { opacity: 1; }
+  body.tok-dragging { cursor: ew-resize; }
+  body.tok-dragging .tok-handle { opacity: 0.9; }
+
   .legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); color: var(--color-text-tertiary); font-size: var(--text-xs); }
   .legend .tok-amt { font-size: var(--text-xs); }
 </style>
@@ -130,14 +161,15 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Ingredients</h2>
-        <p class="hint">Type or paste freely — quantities and units highlight as you go.</p>
+        <p class="hint">Works best as quantity, unit, then ingredient — like "2 tbsp olive oil". Hover the edge of a highlight to drag it if the split's wrong.</p>
       </div>
       <div class="panel-body">
         <div class="token-field">
           <div class="layer overlay" id="ing-overlay" aria-hidden="true"></div>
           <textarea class="layer input-layer" id="ing-input" spellcheck="false"></textarea>
+          <div class="layer handles" id="ing-handles" aria-hidden="true"></div>
         </div>
-        <div class="legend"><span class="tok-amt">2 tbsp</span> recognized amount + unit — everything else is the ingredient, untouched.</div>
+        <div class="legend"><span class="tok-amt">2 tbsp</span> recognized amount + unit — drag its right edge to correct a wrong split, or to mark an amount that wasn't picked up at all.</div>
       </div>
     </section>
 
@@ -190,48 +222,183 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  function renderLine(text, isIngredient) {
+  /** Whitespace-delimited words with their start/end offsets in the original string
+   * (not the trimmed one) — the boundary model below is "how many leading words are
+   * the amount," so offsets have to survive round-tripping through drag. */
+  function getWords(text) {
+    const words = [];
+    const re = /\S+/g;
+    let m;
+    while ((m = re.exec(text))) words.push({ text: m[0], start: m.index, end: m.index + m[0].length });
+    return words;
+  }
+
+  const QTY_WORD = /^(?:\d+(?:\.\d+)?|[¼½¾⅓⅔]|\d+\/\d+)$/;
+
+  /** Auto-detected boundary, in "number of leading words," same unit the manual
+   * override uses — that's what makes a drag-adjusted line and an auto-parsed line
+   * indistinguishable to the rest of the renderer. 0 = nothing recognized. */
+  function autoDetectBoundary(words) {
+    if (!words.length || !QTY_WORD.test(words[0].text)) return 0;
+    let i = 1;
+    if (words[i] && QTY_WORD.test(words[i].text)) i++; // mixed number, e.g. "1 1/2"
+    if (words[i]) {
+      const w = words[i].text.toLowerCase().replace(/[(),]/g, '');
+      if (UNITS.includes(w) || UNITS.includes(w.replace(/s$/, ''))) i++;
+    }
+    return i;
+  }
+
+  // Prototype-only storage, keyed by field + line index — flagged in the design doc
+  // as needing real per-line stable ids (ADR-0006) once this is real, since indices
+  // shift the moment a line is added/removed above the one that was corrected.
+  const overrides = { ing: {} };
+  const getOverride = (field, line) => (overrides[field] && overrides[field][line] != null ? overrides[field][line] : null);
+  const setOverride = (field, line, boundary) => {
+    if (!overrides[field]) overrides[field] = {};
+    overrides[field][line] = boundary;
+  };
+
+  function renderLine(text, isIngredient, override) {
     const trimmed = text.trim();
     if (/:$/.test(trimmed)) {
       return { html: escapeHtml(trimmed.replace(/:$/, '')), heading: true };
     }
     if (!isIngredient || !trimmed) return { html: escapeHtml(text), heading: false };
-    const qtyMatch = trimmed.match(/^([\d¼½¾⅓⅔.\/]+(?:\s+[\d¼½¾⅓⅔\/]+)?)\s*/);
-    if (!qtyMatch) return { html: escapeHtml(text), heading: false };
-    let rest = trimmed.slice(qtyMatch[0].length);
-    const words = rest.split(' ');
-    const firstWord = (words[0] || '').toLowerCase().replace(/[(),]/g, '');
-    let unit = '';
-    if (UNITS.includes(firstWord) || UNITS.includes(firstWord.replace(/s$/, ''))) {
-      unit = words.shift();
-      rest = words.join(' ');
+    const words = getWords(text);
+    const boundary = override != null ? Math.min(override, words.length) : autoDetectBoundary(words);
+    if (boundary === 0 || !words.length) return { html: escapeHtml(text), heading: false };
+    const amtEnd = words[boundary - 1].end;
+    return {
+      html: `<span class="tok-amt">${escapeHtml(text.slice(0, amtEnd))}</span>${escapeHtml(text.slice(amtEnd))}`,
+      heading: false,
+    };
+  }
+
+  function domPositionForOffset(root, offset) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node, remaining = offset, last = null;
+    while ((node = walker.nextNode())) {
+      last = node;
+      if (remaining <= node.length) return { node, offset: Math.max(0, remaining) };
+      remaining -= node.length;
     }
-    const amt = [qtyMatch[1], unit].filter(Boolean).join(' ');
-    return { html: `<span class="tok-amt">${escapeHtml(amt)}</span> ${escapeHtml(rest)}`, heading: false };
+    return last ? { node: last, offset: last.length } : null;
   }
 
-  function renderOverlay(overlayEl, text, isIngredient) {
-    overlayEl.innerHTML = text.split('\n').map(line => {
-      const r = renderLine(line, isIngredient);
-      return `<div class="eline${r.heading ? ' eheading' : ''}">${r.html || '<br>'}</div>`;
+  function xAtOffset(lineEl, offset) {
+    const pos = domPositionForOffset(lineEl, offset);
+    if (!pos) return null;
+    const range = document.createRange();
+    range.setStart(pos.node, pos.offset);
+    range.collapse(true);
+    return range.getBoundingClientRect().left;
+  }
+
+  /** Places the drag handle at the current boundary — including boundary 0, so a
+   * line with nothing recognized still has something to grab and drag rightward.
+   * Appended to the separate .handles layer, not the line itself (see the CSS
+   * comment on why) — positioned using the overlay's rect as the shared coordinate
+   * origin, since .overlay and .handles are laid out identically (position:absolute;
+   * inset:0 on the same parent). */
+  function positionHandle(lineEl, overlayRect, text, field, lineIndex, handlesEl) {
+    const words = getWords(text);
+    if (!words.length) return;
+    const boundary = getOverride(field, lineIndex) ?? autoDetectBoundary(words);
+    const charOffset = boundary === 0 ? 0 : words[Math.min(boundary, words.length) - 1].end;
+    const x = xAtOffset(lineEl, charOffset);
+    if (x == null) return;
+    const lineRect = lineEl.getBoundingClientRect();
+    const handle = document.createElement('div');
+    handle.className = 'tok-handle';
+    handle.dataset.line = lineIndex;
+    handle.style.left = (x - overlayRect.left) + 'px';
+    handle.style.top = (lineRect.top - overlayRect.top) + 'px';
+    handle.style.height = lineRect.height + 'px';
+    handlesEl.appendChild(handle);
+  }
+
+  function renderOverlay(overlayEl, text, isIngredient, field, handlesEl) {
+    const lines = text.split('\n');
+    overlayEl.innerHTML = lines.map((line, i) => {
+      const r = renderLine(line, isIngredient, isIngredient ? getOverride(field, i) : null);
+      return `<div class="eline${r.heading ? ' eheading' : ''}" data-line="${i}">${r.html || '<br>'}</div>`;
     }).join('');
+    if (isIngredient && handlesEl) {
+      handlesEl.innerHTML = '';
+      const overlayRect = overlayEl.getBoundingClientRect();
+      overlayEl.querySelectorAll('.eline').forEach((lineEl, i) => {
+        if (!lineEl.classList.contains('eheading')) {
+          positionHandle(lineEl, overlayRect, lines[i], field, i, handlesEl);
+        }
+      });
+    }
   }
 
-  function wireField(inputId, overlayId, seed, isIngredient) {
+  function wireField(inputId, overlayId, seed, isIngredient, field, handlesId) {
     const input = document.getElementById(inputId);
     const overlay = document.getElementById(overlayId);
+    const handles = handlesId ? document.getElementById(handlesId) : null;
     input.value = seed;
-    renderOverlay(overlay, seed, isIngredient);
+    renderOverlay(overlay, seed, isIngredient, field, handles);
     // The textarea is the only editable surface — the browser owns cursor/selection
     // entirely. Re-rendering the overlay on every keystroke never touches it.
-    input.addEventListener('input', () => renderOverlay(overlay, input.value, isIngredient));
+    input.addEventListener('input', () => renderOverlay(overlay, input.value, isIngredient, field, handles));
     // Layers are stacked, not scrolled together automatically — keep the highlight
-    // layer's scroll position matched to what's actually being typed in.
-    input.addEventListener('scroll', () => { overlay.scrollTop = input.scrollTop; });
+    // (and handle) layers' scroll position matched to what's actually being typed in.
+    input.addEventListener('scroll', () => {
+      overlay.scrollTop = input.scrollTop;
+      if (handles) handles.scrollTop = input.scrollTop;
+    });
   }
 
-  wireField('ing-input', 'ing-overlay', ING_SEED, true);
-  wireField('steps-input', 'steps-overlay', STEPS_SEED, false);
+  wireField('ing-input', 'ing-overlay', ING_SEED, true, 'ing', 'ing-handles');
+  wireField('steps-input', 'steps-overlay', STEPS_SEED, false, 'steps', null);
+
+  // Dragging a boundary handle: delegated, since renderOverlay rebuilds the handle
+  // DOM on every keystroke and every drag step — a per-node listener would go stale
+  // the moment anything re-renders.
+  let dragState = null;
+
+  document.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.tok-handle');
+    if (!handle) return;
+    e.preventDefault();
+    dragState = { field: handle.closest('.handles').id.replace('-handles', ''), lineIndex: Number(handle.dataset.line) };
+    document.body.classList.add('tok-dragging');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragState) return;
+    const { field, lineIndex } = dragState;
+    const input = document.getElementById(field + '-input');
+    const overlayEl = document.getElementById(field + '-overlay');
+    const handlesEl = document.getElementById(field + '-handles');
+    const lineText = input.value.split('\n')[lineIndex];
+    const lineEl = overlayEl.querySelectorAll('.eline')[lineIndex];
+    const words = getWords(lineText);
+    if (!lineEl || !words.length) return;
+    // Snap to the nearest word boundary, never mid-word — every real recipe line's
+    // amount/ingredient split falls on a word boundary, so this keeps the gesture
+    // fast without needing sub-word precision from the user.
+    let best = 0, bestDist = Infinity;
+    for (let b = 0; b <= words.length; b++) {
+      const charOffset = b === 0 ? 0 : words[b - 1].end;
+      const x = xAtOffset(lineEl, charOffset);
+      if (x == null) continue;
+      const dist = Math.abs(x - e.clientX);
+      if (dist < bestDist) { bestDist = dist; best = b; }
+    }
+    setOverride(field, lineIndex, best);
+    renderOverlay(overlayEl, input.value, true, field, handlesEl);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (dragState) {
+      dragState = null;
+      document.body.classList.remove('tok-dragging');
+    }
+  });
 </script>
 
 </body>
