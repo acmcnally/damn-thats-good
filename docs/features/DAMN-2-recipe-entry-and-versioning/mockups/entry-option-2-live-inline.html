@@ -45,12 +45,27 @@
   .panel-head .hint { color: var(--color-text-tertiary); font-size: var(--text-sm); margin: 0; }
   .panel-body { padding: var(--space-5); }
 
-  .editable {
-    min-height: 180px; border: 1px solid var(--color-border); border-radius: var(--radius-md);
-    padding: var(--space-4); font: var(--text-base)/1.8 var(--font-sans); color: var(--color-text-primary);
-    background: var(--color-bg-primary); white-space: pre-wrap;
+  /*
+   * Live highlight, no contenteditable: a native <textarea> handles all typing,
+   * selection, and cursor behavior (the same browser-native behavior options 1 and 3
+   * get for free) — it is fully transparent (text color, not just background), with
+   * a visible caret via caret-color. A non-interactive layer sits directly behind it,
+   * pixel-identical font/padding/line-height, rendering the same text with highlight
+   * spans. Re-rendering that layer on every keystroke never touches the real cursor,
+   * because the cursor was never anything but the textarea's own.
+   */
+  .token-field { position: relative; min-height: 180px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-primary); overflow: hidden; }
+  .token-field:focus-within { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+  .token-field .layer {
+    position: absolute; inset: 0; margin: 0; padding: var(--space-4); border: none;
+    font: var(--text-base)/1.8 var(--font-sans); white-space: pre-wrap; word-wrap: break-word;
+    box-sizing: border-box; overflow: auto;
   }
-  .editable:focus { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+  .token-field .overlay { color: var(--color-text-primary); pointer-events: none; }
+  .token-field textarea.input-layer {
+    resize: none; background: transparent; color: transparent; caret-color: var(--color-text-primary);
+  }
+  .token-field textarea.input-layer:focus { outline: none; }
   .eline { min-height: 1.8em; }
   .eline.eheading { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-accent); text-transform: uppercase; letter-spacing: var(--tracking-caps); margin-top: 10px; }
   .eline.eheading:first-child { margin-top: 0; }
@@ -99,7 +114,10 @@
         <p class="hint">Type or paste freely — quantities and units highlight as you go.</p>
       </div>
       <div class="panel-body">
-        <div class="editable" id="ing-editable" contenteditable="true" data-mode="ing"></div>
+        <div class="token-field">
+          <div class="layer overlay" id="ing-overlay" aria-hidden="true"></div>
+          <textarea class="layer input-layer" id="ing-input" spellcheck="false"></textarea>
+        </div>
         <div class="legend"><span class="tok-amt">2 tbsp</span> recognized amount + unit — everything else is the ingredient, untouched.</div>
       </div>
     </section>
@@ -110,7 +128,10 @@
         <p class="hint">One step per line or paragraph. Markdown supported.</p>
       </div>
       <div class="panel-body">
-        <div class="editable" id="steps-editable" contenteditable="true" data-mode="steps"></div>
+        <div class="token-field">
+          <div class="layer overlay" id="steps-overlay" aria-hidden="true"></div>
+          <textarea class="layer input-layer" id="steps-input" spellcheck="false"></textarea>
+        </div>
       </div>
     </section>
   </main>
@@ -170,58 +191,28 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
     return { html: `<span class="tok-amt">${escapeHtml(amt)}</span> ${escapeHtml(rest)}`, heading: false };
   }
 
-  function getCaretOffset(el) {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return 0;
-    const range = sel.getRangeAt(0);
-    const pre = range.cloneRange();
-    pre.selectNodeContents(el);
-    pre.setEnd(range.endContainer, range.endOffset);
-    return pre.toString().length;
-  }
-
-  function setCaretOffset(el, offset) {
-    const sel = window.getSelection();
-    const range = document.createRange();
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-    let node, remaining = offset;
-    while ((node = walker.nextNode())) {
-      if (remaining <= node.length) {
-        range.setStart(node, Math.max(0, remaining));
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        return;
-      }
-      remaining -= node.length + 1; // +1 for the implicit newline between line divs
-    }
-    range.selectNodeContents(el);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-
-  function seedEditable(el, text, isIngredient) {
-    el.innerHTML = text.split('\n').map(line => {
+  function renderOverlay(overlayEl, text, isIngredient) {
+    overlayEl.innerHTML = text.split('\n').map(line => {
       const r = renderLine(line, isIngredient);
       return `<div class="eline${r.heading ? ' eheading' : ''}">${r.html || '<br>'}</div>`;
     }).join('');
   }
 
-  function rerender(el, isIngredient) {
-    const offset = getCaretOffset(el);
-    const text = el.innerText.replace(/\n$/, '');
-    seedEditable(el, text, isIngredient);
-    setCaretOffset(el, offset);
+  function wireField(inputId, overlayId, seed, isIngredient) {
+    const input = document.getElementById(inputId);
+    const overlay = document.getElementById(overlayId);
+    input.value = seed;
+    renderOverlay(overlay, seed, isIngredient);
+    // The textarea is the only editable surface — the browser owns cursor/selection
+    // entirely. Re-rendering the overlay on every keystroke never touches it.
+    input.addEventListener('input', () => renderOverlay(overlay, input.value, isIngredient));
+    // Layers are stacked, not scrolled together automatically — keep the highlight
+    // layer's scroll position matched to what's actually being typed in.
+    input.addEventListener('scroll', () => { overlay.scrollTop = input.scrollTop; });
   }
 
-  const ingEl = document.getElementById('ing-editable');
-  const stepsEl = document.getElementById('steps-editable');
-  seedEditable(ingEl, ING_SEED, true);
-  seedEditable(stepsEl, STEPS_SEED, false);
-
-  ingEl.addEventListener('input', () => rerender(ingEl, true));
-  stepsEl.addEventListener('input', () => rerender(stepsEl, false));
+  wireField('ing-input', 'ing-overlay', ING_SEED, true);
+  wireField('steps-input', 'steps-overlay', STEPS_SEED, false);
 </script>
 
 </body>
