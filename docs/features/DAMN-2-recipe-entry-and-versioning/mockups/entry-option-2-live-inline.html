@@ -73,10 +73,22 @@
     caret-color: var(--color-text-primary);
   }
   .token-field textarea.input-layer:focus { outline: none; }
+  /*
+   * Every rule below must leave each character's horizontal (and vertical) position
+   * exactly where it would fall as plain, unstyled text — that's what the invisible
+   * textarea underneath actually has, and the real cursor is positioned against ITS
+   * layout, not the overlay's. Anything that changes advance width (padding, a
+   * different font-size/weight, letter-spacing, text-transform) or line box height
+   * (margin) makes the overlay drift out of registration with the real text — which
+   * is exactly the bug just reported. Only paint-only properties are safe here:
+   * color, background-color with no padding, text-decoration. No badges, no small
+   * caps, no bold — that visual richness is available to options 1 and 3, whose
+   * "structured preview" is a separate element with no such constraint; it is a real
+   * trade-off of this direction, not a bug to work around further.
+   */
   .eline { min-height: 1.8em; }
-  .eline.eheading { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-accent); text-transform: uppercase; letter-spacing: var(--tracking-caps); margin-top: 10px; }
-  .eline.eheading:first-child { margin-top: 0; }
-  .tok-amt { background: var(--color-accent-muted); color: var(--color-accent); border-radius: 5px; padding: 1px 5px; font-weight: var(--weight-semibold); }
+  .eline.eheading { color: var(--color-accent); text-decoration: underline; text-decoration-color: var(--color-accent-muted); text-underline-offset: 3px; }
+  .tok-amt { background: var(--color-accent-muted); color: var(--color-accent); }
 
   .legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); color: var(--color-text-tertiary); font-size: var(--text-xs); }
   .legend .tok-amt { font-size: var(--text-xs); }
