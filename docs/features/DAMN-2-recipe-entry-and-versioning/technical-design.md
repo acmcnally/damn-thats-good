@@ -173,9 +173,9 @@ export const recipes = pgTable('recipes', {
   provenance: text('provenance'),
   visibility: recipeVisibility('visibility').notNull().default('private'),
   currentVersionId: uuid('current_version_id').references((): AnyPgColumn => recipeVersions.id),
-  updtCnt: integer('updt_cnt').notNull().default(1), // see decision #7
-  creatDtTm: timestamp('creat_dt_tm', { withTimezone: true }).notNull().defaultNow(),
-  updtDtTm: timestamp('updt_dt_tm', { withTimezone: true }).notNull().defaultNow(),
+  updateCnt: integer('update_cnt').notNull().default(1), // see decision #7
+  createDtTm: timestamp('create_dt_tm', { withTimezone: true }).notNull().defaultNow(),
+  updateDtTm: timestamp('update_dt_tm', { withTimezone: true }).notNull().defaultNow(),
 });
 ```
 
@@ -183,9 +183,9 @@ export const recipes = pgTable('recipes', {
 
 `currentVersionId` is nullable at the DB level only to break the insertion cycle with `recipe_versions` (see migration plan) — `RecipesService` is the only writer, and the invariant "every `recipes` row has a non-null `currentVersionId` once its creating transaction commits" is enforced there, the same style as `BookProvisioningRaceError` documents an application-level invariant today.
 
-`updtCnt` is the optimistic-concurrency token for non-content fields (see decision #7, revised) — an integer counter, incremented atomically by `RecipesService` on every metadata `PATCH`. `updtDtTm` remains a plain last-modified timestamp for display/sort purposes only; it no longer participates in concurrency control.
+`updateCnt` is the optimistic-concurrency token for non-content fields (see decision #7, revised) — an integer counter, incremented atomically by `RecipesService` on every metadata `PATCH`. `updateDtTm` remains a plain last-modified timestamp for display/sort purposes only; it no longer participates in concurrency control.
 
-**Naming convention note:** `creat_dt_tm`/`updt_dt_tm`/`updt_cnt` are a deliberate departure from this project's existing `created_at`/`updated_at` naming (already shipped on `users`/`books`) — see decision #7's second revision, below, for why and for the accompanying rename of the existing tables.
+**Naming convention note:** `create_dt_tm`/`update_dt_tm`/`update_cnt` are a deliberate departure from this project's existing `created_at`/`updated_at` naming (already shipped on `users`/`books`) — see decision #7's second revision, below, for why and for the accompanying rename of the existing tables.
 
 ### `recipe_versions` table
 
@@ -201,7 +201,7 @@ export const recipeVersions = pgTable(
     content: jsonb('content').notNull().$type<RecipeContent>(),
     authorId: uuid('author_id').notNull().references(() => users.id),
     note: text('note'),
-    creatDtTm: timestamp('creat_dt_tm', { withTimezone: true }).notNull().defaultNow(),
+    createDtTm: timestamp('create_dt_tm', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('recipe_versions_recipe_version_idx').on(t.recipeId, t.versionNumber)],
 );
@@ -220,7 +220,7 @@ export const tags = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     bookId: uuid('book_id').notNull().references(() => books.id),
     name: text('name').notNull(), // stored lowercase+trimmed — see above
-    creatDtTm: timestamp('creat_dt_tm', { withTimezone: true }).notNull().defaultNow(),
+    createDtTm: timestamp('create_dt_tm', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('tags_book_name_idx').on(t.bookId, t.name)],
 );
@@ -248,7 +248,7 @@ One Drizzle migration (`drizzle-kit generate`), in this order (tables are create
 3. `CREATE TABLE recipe_versions` (FK to `recipes.id`)
 4. `ALTER TABLE recipes ADD CONSTRAINT ... FOREIGN KEY (current_version_id) REFERENCES recipe_versions(id)`
 5. `CREATE TABLE tags`, `CREATE TABLE recipe_tags`
-6. `ALTER TABLE users RENAME COLUMN created_at TO creat_dt_tm`, `ALTER TABLE users RENAME COLUMN updated_at TO updt_dt_tm`, and the same pair for `books` (naming convention, see decision #7). Corresponding edits to `packages/db/src/schema.ts`'s existing `users`/`books` definitions (`createdAt`/`updatedAt` → `creatDtTm`/`updtDtTm`). Grepped confirmed nothing outside `packages/db` reads those two columns by name today, so no other code changes ride along with this rename.
+6. `ALTER TABLE users RENAME COLUMN created_at TO create_dt_tm`, `ALTER TABLE users RENAME COLUMN updated_at TO update_dt_tm`, and the same pair for `books` (naming convention, see decision #7). Corresponding edits to `packages/db/src/schema.ts`'s existing `users`/`books` definitions (`createdAt`/`updatedAt` → `createDtTm`/`updateDtTm`). Grepped confirmed nothing outside `packages/db` reads those two columns by name today, so no other code changes ride along with this rename.
 
 Drizzle's schema file expresses steps 2–4 as ordinary `.references()` calls (Drizzle resolves the two-table circular reference from the TS module graph and emits the FK-add as a separate statement in the generated SQL automatically) — no hand-written SQL needed, same `drizzle-kit generate` → commit → `migrate` flow as the existing `books`/`users` migrations.
 
@@ -265,7 +265,7 @@ Drizzle's schema file expresses steps 2–4 as ordinary `.references()` calls (D
 All in one transaction — never observable outside it with a null `current_version_id`.
 
 **Write path for updating recipe metadata** (`RecipesService.updateMetadata`, phase 5 fix — finding 6), one DB transaction:
-1. `UPDATE recipes SET title = ..., servings = ..., provenance = ..., visibility = ..., updt_cnt = updt_cnt + 1, updt_dt_tm = now() WHERE id = $id AND updt_cnt = $expectedUpdtCnt RETURNING *`. Zero rows → 412, return the current row (fetched separately) for the client's reconcile prompt.
+1. `UPDATE recipes SET title = ..., servings = ..., provenance = ..., visibility = ..., update_cnt = update_cnt + 1, update_dt_tm = now() WHERE id = $id AND update_cnt = $expectedUpdtCnt RETURNING *`. Zero rows → 412, return the current row (fetched separately) for the client's reconcile prompt.
 2. If `tags` was included in the request: diff the (normalized) submitted names against the recipe's currently-linked tag names. Upsert any new names (same get-or-create shape as create's step 2), `INSERT` new `recipe_tags` link rows, `DELETE` link rows for names no longer present.
 
 **Write path for saving content** (`RecipesService.saveContent`, phase 5 fix — finding 2), one DB transaction:
@@ -281,7 +281,7 @@ REST, resource-oriented, all routes behind the existing global `JwtAuthGuard`. N
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/recipes` | List, scoped to the caller's book. Lightweight shape (no `content`) — `id, title, servings, tags, visibility, updtDtTm`. Sorted by `updtDtTm desc`. No query params in V1 (see Non-goals). |
+| `GET` | `/recipes` | List, scoped to the caller's book. Lightweight shape (no `content`) — `id, title, servings, tags, visibility, updateDtTm`. Sorted by `updateDtTm desc`. No query params in V1 (see Non-goals). |
 | `GET` | `/recipes/:id` | Detail — full metadata + current version's `content` + `currentVersionId`/`versionNumber`. 404 if the recipe isn't in the caller's book. |
 | `POST` | `/recipes` | Create. Body: `{ title, servings?, provenance?, tags: string[], content: { ingredients, steps } }` (server stamps `contentSchemaVersion`). Runs the transaction above. Returns the detail shape, 201. |
 | `PATCH` | `/recipes/:id` | Metadata only (title, servings, provenance, tags, visibility) — never touches `content`/version. Body carries `expectedUpdtCnt` (integer, see decision #7); mismatch → 412 with the current row. |
@@ -335,7 +335,7 @@ export interface RecipeSummary {
   servings: string | null;
   tags: string[];
   visibility: z.infer<typeof visibilitySchema>;
-  updtDtTm: string;
+  updateDtTm: string;
 }
 
 export interface RecipeDetail extends RecipeSummary {
@@ -343,12 +343,12 @@ export interface RecipeDetail extends RecipeSummary {
   currentVersionId: string;
   currentVersionNumber: number;
   content: RecipeContent;
-  updtCnt: number; // phase 5 fix — finding 9: the client echoes this back as expectedUpdtCnt on the next PATCH
-  creatDtTm: string;
+  updateCnt: number; // phase 5 fix — finding 9: the client echoes this back as expectedUpdtCnt on the next PATCH
+  createDtTm: string;
 }
 ```
 
-Field names carry the `creat_dt_tm`/`updt_dt_tm`/`updt_cnt` convention through unchanged from DB column → Drizzle property → wire DTO — no separate "clean" public-API naming layer, consistent with how this codebase already treats every other field (`workosUserId` stays `workosUserId` end-to-end, not translated at the API boundary).
+Field names carry the `create_dt_tm`/`update_dt_tm`/`update_cnt` convention through unchanged from DB column → Drizzle property → wire DTO — no separate "clean" public-API naming layer, consistent with how this codebase already treats every other field (`workosUserId` stays `workosUserId` end-to-end, not translated at the API boundary).
 
 - The ingredient-line boundary detector (`autoDetectBoundary` in the mockup) is promoted to `packages/shared/src/ingredient-parser.ts` — same module DAMN-5 (URL import) reuses per its tracker text. Ports the mockup's `QTY_WORD`/word-boundary logic; component/unit tests own its correctness, not this design doc.
 
@@ -367,14 +367,14 @@ Field names carry the `creat_dt_tm`/`updt_dt_tm`/`updt_cnt` convention through u
 6. **Tags storage:** normalized `tags` (book-scoped, unique) + `recipe_tags` join table, not a `text[]` column on `recipes`. **Recommendation, applied.** The mockup's `+` control explicitly offers "select an existing tag or create one" — that's a real autocomplete against the book's tag vocabulary, which a `text[]` column would need a `SELECT DISTINCT unnest(...)` workaround for and would leave prone to near-duplicate drift ("Dessert" vs "desserts"). A join table also positions tag rename/cleanup as a one-row update later, and gives `GET /tags` a clean source. The alternative (`text[]`) would have been simpler to write today; rejected because the UX already committed to tag identity, not just tag strings.
    - **Revised (phase 5, findings 6/7):** the owner confirmed tags don't need real case sensitivity — the mockup's all-caps look is a CSS `text-transform`, not the stored value. Rather than a case-insensitive functional unique index (`lower(name)`) with `ILIKE`/`lower()` sprinkled through every query and upsert, names are normalized (trim + lowercase) once, at the Zod boundary, before any write. Cheaper: a plain unique index, plain equality everywhere, and the in-request-duplicate problem (finding 7 — `["Dessert", "dessert"]` in one submission) disappears by construction since the array is de-duplicated in the same transform.
 
-7. **Recipe-metadata optimistic-concurrency token:** `recipes.updt_cnt`, an integer counter — not `recipes.updated_at`. **Revised, phase 5 (finding 9).** Originally spec'd as reusing `updated_at`, reasoned as avoiding a redundant column "for no behavioral difference." The review surfaced a real behavioral difference: a timestamp round-trips through Postgres (microsecond precision) → JSON → JS `Date` (millisecond precision) → back to the server as the CAS comparison value, and any precision or serialization drift in that path would cause **spurious 412s on saves that were never actually racing** — a worse bug than the one the guard exists to prevent, and not caught by a test plan that only exercised the stale-rejection path. An integer counter (`UPDATE ... SET updt_cnt = updt_cnt + 1 WHERE id = $id AND updt_cnt = $expected`) has none of that: exact equality, no precision class of bug at all, and it mirrors the pattern this feature already uses for content (`recipe_versions.version_number`). A last-modified timestamp stays on the row for plain display/sort; it's simply no longer load-bearing for concurrency. (CLAUDE.md's own phrasing for this guard — "a `Recipe` row version / `updated_at`" — already named both as options; this locks in the row-version half.)
-   - **Naming, revised again (post-review discussion):** `row_version`/`created_at`/`updated_at` are renamed to `updt_cnt`/`creat_dt_tm`/`updt_dt_tm` (abbreviated, `_dt_tm` for timestamps) — the owner's preferred convention from their enterprise/Oracle background, applied to every table this issue adds (`recipes`, `recipe_versions`, `tags`). This diverges from this project's existing `created_at`/`updated_at` naming already shipped on `users`/`books` — by the owner's explicit direction, those two tables are renamed to match in the same change (a straightforward `ALTER TABLE ... RENAME COLUMN` migration; nothing outside `packages/db` currently reads those columns by name, so the blast radius is small). Scoped narrowly to timestamp/counter-style columns — `owner_id`, `workos_user_id`, and other non-date/non-counter columns are untouched. `created_at` itself stays (renamed, not dropped): on `recipe_versions` it's load-bearing — versions are immutable with no `updated_at` of their own, so it's the only timestamp DAMN-3's history UI has to show when a version was saved; elsewhere (`recipes`, `tags`, `users`, `books`) it's speculative-but-cheap audit hygiene, kept on standard cost/benefit grounds (one column, `defaultNow()`, versus being unable to backfill it later if a future feature wants it).
+7. **Recipe-metadata optimistic-concurrency token:** `recipes.update_cnt`, an integer counter — not `recipes.updated_at`. **Revised, phase 5 (finding 9).** Originally spec'd as reusing `updated_at`, reasoned as avoiding a redundant column "for no behavioral difference." The review surfaced a real behavioral difference: a timestamp round-trips through Postgres (microsecond precision) → JSON → JS `Date` (millisecond precision) → back to the server as the CAS comparison value, and any precision or serialization drift in that path would cause **spurious 412s on saves that were never actually racing** — a worse bug than the one the guard exists to prevent, and not caught by a test plan that only exercised the stale-rejection path. An integer counter (`UPDATE ... SET update_cnt = update_cnt + 1 WHERE id = $id AND update_cnt = $expected`) has none of that: exact equality, no precision class of bug at all, and it mirrors the pattern this feature already uses for content (`recipe_versions.version_number`). A last-modified timestamp stays on the row for plain display/sort; it's simply no longer load-bearing for concurrency. (CLAUDE.md's own phrasing for this guard — "a `Recipe` row version / `updated_at`" — already named both as options; this locks in the row-version half.)
+   - **Naming, revised again (post-review discussion):** `row_version`/`created_at`/`updated_at` are renamed to `update_cnt`/`create_dt_tm`/`update_dt_tm` (`_dt_tm` for timestamps, `_cnt` for the counter) — the owner's preferred convention from their enterprise/Oracle background, applied to every table this issue adds (`recipes`, `recipe_versions`, `tags`). This diverges from this project's existing `created_at`/`updated_at` naming already shipped on `users`/`books` — by the owner's explicit direction, those two tables are renamed to match in the same change (a straightforward `ALTER TABLE ... RENAME COLUMN` migration; nothing outside `packages/db` currently reads those columns by name, so the blast radius is small). Scoped narrowly to timestamp/counter-style columns — `owner_id`, `workos_user_id`, and other non-date/non-counter columns are untouched. `created_at` itself stays (renamed, not dropped): on `recipe_versions` it's load-bearing — versions are immutable with no `updated_at` of their own, so it's the only timestamp DAMN-3's history UI has to show when a version was saved; elsewhere (`recipes`, `tags`, `users`, `books`) it's speculative-but-cheap audit hygiene, kept on standard cost/benefit grounds (one column, `defaultNow()`, versus being unable to backfill it later if a future feature wants it).
 
 8. **Recipe delete:** hard delete, `DELETE /recipes/:id`, client-side confirmation only — no `deleted_at`/trash/undo in V1. **Recommendation, applied.** No backup/trash feature has been requested anywhere in the roadmap; a soft-delete column would be unused complexity until (if ever) "I deleted the wrong recipe" becomes a real, reported pain — consistent with this project's general "add complexity only when the pain is real" posture (`CLAUDE.md` § Scope & simplicity).
 
 9. **Visibility enforcement:** the `visibility` column and enum are added now (cheap, and per ADR-0006-adjacent forward-compat reasoning it's better in the first schema than retrofitted), but **no enforcement logic is built in DAMN-2.** **Recommendation, applied.** V1 has no route through which one user could ever see another user's book — every handler resolves strictly to the caller's own book (`BookContextGuard`) — so `unlisted`/`public` are inert until multi-owner/sharing (`DAMN-19`, parked) or some other cross-book read path exists. Building enforcement against a non-existent access path would be speculative.
 
-10. **Search/filter on `GET /recipes`:** out of scope. Returns the full list, sorted by `updtDtTm`. **Recommendation, applied.** ADR-0002 already flags the FTS/`pg_trgm` blending strategy as a genuinely open design task for "the V1 search build" — folding a half-designed version of it into this issue's list endpoint would mean redoing it properly later anyway.
+10. **Search/filter on `GET /recipes`:** out of scope. Returns the full list, sorted by `updateDtTm`. **Recommendation, applied.** ADR-0002 already flags the FTS/`pg_trgm` blending strategy as a genuinely open design task for "the V1 search build" — folding a half-designed version of it into this issue's list endpoint would mean redoing it properly later anyway.
 
 11. **`content_schema_version` storage:** embedded in the JSONB document, no DB column. **Recommendation, applied.** See "`content` (JSONB...)" above.
 
@@ -408,6 +408,6 @@ Run as a fresh-context subagent against the frozen DAMN-2 requirement text, the 
 
 - **Must-fix, applied:** no mechanism for per-line id stability across edits (→ "Line reconciliation" section, reconcile-on-blur/save); concurrency guard was check-then-act, not atomic (→ row-locked CAS transaction in "Write path for saving content"); Drizzle circular-FK sample wouldn't typecheck (→ `AnyPgColumn` callback); schema didn't enforce the duplicate-id rejection the test plan claimed (→ `.superRefine`); `DELETE` would FK-violate on every real recipe (→ `onDelete: 'cascade'`); `PATCH`'s tag-mutation path was unspecified (→ new write-path subsection).
 - **Discussed with the owner and resolved:** tags don't need case sensitivity — normalize to lowercase at the Zod boundary rather than case-insensitive queries everywhere (decision #6, revised); a pure boundary re-confirmation with no substantive change shouldn't mint a new version — `parseStatus` excluded from `contentEquals`; the metadata concurrency token is an integer counter, not a timestamp (decision #7, revised) — avoids a whole class of timestamp-precision/serialization bug for a check that exists specifically to prevent silent data loss.
-- **Follow-up discussion, post-review:** naming convention for the new counter/timestamp columns — settled as `updt_cnt`/`creat_dt_tm`/`updt_dt_tm` (decision #7's second revision), including a same-change rename of the already-shipped `users`/`books` timestamp columns to match (see migration plan).
+- **Follow-up discussion, post-review:** naming convention for the new counter/timestamp columns — settled as `update_cnt`/`create_dt_tm`/`update_dt_tm` (decision #7's second revision), including a same-change rename of the already-shipped `users`/`books` timestamp columns to match (see migration plan).
 
 No items outstanding. Ready for phase 6 (implementation).
