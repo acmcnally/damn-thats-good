@@ -23,7 +23,7 @@ This is not a V1-critical feature (it lands in V4 App Experience, Linear `DAMN-2
   - Also emit a **Schema.org `Recipe` JSON-LD** file per recipe for portability into other tools the user chooses (JSON-LD is ADR-0006's primary interop format — interop only, not a public/SEO artifact).
 - **Collection references** (links to other people's recipes) export as lightweight pointers with enough metadata to be human-useful, not as copies — they are not the user's content to take.
 - Export is a background job that produces a downloadable artifact; the user is notified when it is ready.
-- **Account deletion** offers the user an export first (prompt, not automatic), then removes the user's owned content (with the multi-owner-book edge case — see Consequences). Deletion also calls the auth provider's delete-user API (ADR-0003 — WorkOS).
+- **Account deletion** offers the user an export first (prompt, not automatic), then removes the user's owned content. Deletion also calls the auth provider's delete-user API (ADR-0003 — WorkOS).
 
 ## Alternatives considered
 
@@ -39,6 +39,5 @@ This is not a V1-critical feature (it lands in V4 App Experience, Linear `DAMN-2
 ## Consequences
 
 - With structured content (ADR-0006) and history as complete rows (ADR-0007), this export is nearly a straight serialization — no lossy transformation to native JSON or JSON-LD, and each version also renders to best-effort `.cook` text. The `manifest.json` schema version tracks the `content_schema_version` from ADR-0006.
-- **Multi-owner books** (data model): a book owned by several users cannot be unilaterally deleted when one owner leaves. On account deletion, the leaving user is removed from the ownership set; the book and its recipes remain for the other owners. A book with only the leaving user as owner is deleted (after export). This rule needs to be stated in the account-deletion feature spec.
 - Export bundles include photos (once photos exist — V3, ADR-0008 / `DAMN-24`), so export artifact size is dominated by images — bundle the master rendition from ADR-0008 (there are no kept originals) to keep the archive reasonable.
 - Export artifacts contain a user's full data and must themselves be access-controlled (signed, expiring download URL; deleted after a short window).
