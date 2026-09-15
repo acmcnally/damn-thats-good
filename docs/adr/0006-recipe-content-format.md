@@ -21,7 +21,7 @@ The original lean was Cooklang (`.cook` text), because `cooklang-rs` appeared to
 
 1. **Stable per-line identifiers.** Every ingredient line and every step carries an immutable identifier assigned on creation. Diff and any future merge (ADR-0007) key on these, not on array position. Retrofitting identifiers onto stored content is a migration, so `DAMN-2` must include them in the first schema.
 2. **Additive evolution, version-tagged.** Stored content carries a `content_schema_version`. Schema changes are additive (new optional fields) and migrated incrementally. A schema change does not reopen this ADR.
-3. **Single source of truth in `packages/shared`.** The content schema is defined once in `packages/shared` (leaning Zod — runtime validation plus inferred types, usable on both sides; confirm when scaffolding `packages/shared`, ADR-0005) and imported by both the web editor and the NestJS API. Not duplicated, not DB-enforced in V1.
+3. **Single source of truth in `packages/shared`.** The content schema is defined once in `packages/shared`, using Zod — runtime validation plus inferred types, usable on both sides. This was originally a lean pending confirmation when `packages/shared` was scaffolded (ADR-0005); that confirmation didn't actually happen at scaffolding time, and was locked in by `DAMN-2` instead — see its technical design doc for the alternatives considered (`class-validator`/`class-transformer`, hand-written types) and why Zod won. Not duplicated, not DB-enforced in V1.
 
 **Flag for `DAMN-2` (not decided here):** ingredient and step **sectioning** ("For the sauce:", "For the filling:") is a common real-world structure and is expensive to retrofit into a flat list. `DAMN-2` should decide it in-or-out deliberately, not by default.
 
