@@ -1,22 +1,17 @@
-import { startTestDb, type TestDb } from '@dtg/db/testing';
 import type { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { TOKEN_VERIFIER, TokenInvalidError, type TokenVerifier } from './auth/token-verifier';
-import { USER_LOOKUP, type UserLookup } from './auth/user-lookup';
+import { TokenInvalidError, type TokenVerifier } from './auth/token-verifier';
+import type { UserLookup } from './auth/user-lookup';
+import { bootstrapComponentApp } from './test-support/component-app';
 
 // Component tier (ADR-0012): the real Nest app + real Drizzle against a throwaway
 // Postgres. One container for the file — starting it is the slow part. WorkOS itself
 // stays mocked throughout (stub TokenVerifier + stub UserLookup) — this tier never
 // needs a live WorkOS.
-//
-// AppModule is imported *dynamically* inside beforeAll: `ConfigModule.forRoot` validates
-// the env the moment app.module.ts is evaluated, so DATABASE_URL (and the other
-// required vars) have to be set first.
-let db: TestDb;
 let app: INestApplication;
+let teardown: () => Promise<void>;
 
 /** Bearer tokens this stub understands, `sub` → token. Anything else is "invalid". */
 const KNOWN_TOKENS: Record<string, string> = {
@@ -39,27 +34,15 @@ const stubUserLookup: UserLookup = {
 };
 
 beforeAll(async () => {
-  db = await startTestDb();
-  process.env.DATABASE_URL = db.url;
-  process.env.WORKOS_API_KEY = 'sk_test_component_tier';
-  process.env.WORKOS_CLIENT_ID = 'client_test_component_tier';
-
-  const { AppModule } = await import('./app.module');
-
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(TOKEN_VERIFIER)
-    .useValue(stubVerifier)
-    .overrideProvider(USER_LOOKUP)
-    .useValue(stubUserLookup)
-    .compile();
-  app = moduleRef.createNestApplication();
-  app.setGlobalPrefix('api');
-  await app.init();
+  ({ app, teardown } = await bootstrapComponentApp({
+    tokenVerifier: stubVerifier,
+    userLookup: stubUserLookup,
+    configure: (app) => app.setGlobalPrefix('api'),
+  }));
 });
 
 afterAll(async () => {
-  await app?.close();
-  await db?.teardown();
+  await teardown?.();
 });
 
 describe('GET /api/health', () => {
