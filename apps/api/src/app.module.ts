@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AuthModule } from './auth/auth.module';
+import { BooksModule } from './books/books.module';
 import { validateEnv } from './config/env';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
@@ -20,6 +21,7 @@ const repoEnvFile = fileURLToPath(new URL('../../../.env', import.meta.url));
     DatabaseModule,
     HealthModule,
     UsersModule,
+    BooksModule,
     AuthModule, // registers the global JwtAuthGuard (DAMN-1) — every route is
     // authenticated by default from here on; @Public() opts a route out.
   ],

@@ -19,3 +19,23 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Single-owner in V1 — `owner_id` is UNIQUE, not just indexed, so "exactly one book per
+ * user" is a real database invariant, not just an API convention. That uniqueness is
+ * also what makes `BooksService`'s get-or-create race-safe: the database arbitrates
+ * concurrent first-book creation, not application logic.
+ *
+ * `name` defaults to 'My Recipe Book' and isn't surfaced in any V1 UI — added now only
+ * to avoid a later migration if a future feature wants a display name.
+ */
+export const books = pgTable('books', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerId: uuid('owner_id')
+    .notNull()
+    .unique()
+    .references(() => users.id),
+  name: text('name').notNull().default('My Recipe Book'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
