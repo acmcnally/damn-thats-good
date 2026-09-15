@@ -157,6 +157,9 @@
   .eline { min-height: 1.8em; }
   .eline.eheading { color: var(--color-accent); text-decoration: underline; text-decoration-color: var(--color-accent-muted); text-underline-offset: 3px; }
   .tok-amt { background: var(--color-accent-muted); color: var(--color-accent); }
+  /* color only, no font-weight — same alignment-safety reasoning as everywhere
+     else in this file: weight changes a glyph's advance width. */
+  .tok-list-marker { color: var(--color-accent); }
 
   /*
    * The boundary handles live in their own layer, stacked above the textarea (last
@@ -263,7 +266,7 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Steps</h2>
-        <p class="hint">One step per line or paragraph. Markdown supported.</p>
+        <p class="hint">One step per line or paragraph. Numbered ("1.") and bulleted ("-") lists continue automatically on Enter.</p>
       </div>
       <div class="panel-body">
         <div class="token-field">
@@ -303,7 +306,8 @@ Stir in beans, chiles, and broth. Bring to a simmer.
 Reduce heat and simmer uncovered 25 minutes, stirring occasionally.
 
 For serving:
-Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
+1. Ladle into bowls.
+2. Top with cheese, avocado, and a squeeze of lime.`;
 
   function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -346,12 +350,35 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
     overrides[field][line] = boundary;
   };
 
+  // Numbered ("1.", "2)") or bulleted ("-", "*", "•") list markers, steps only.
+  // Lookahead (not a consumed \s+) so the marker span itself never includes the
+  // trailing space, and so "2.5 cups"-shaped text doesn't false-positive — the
+  // character right after the marker must be whitespace or end of line.
+  const LIST_MARKER = /^(\s*)((?:\d+[.)])|[-*•])(?=\s|$)/;
+
   function renderLine(text, isIngredient, override) {
     const trimmed = text.trim();
     if (/:$/.test(trimmed)) {
-      return { html: escapeHtml(trimmed.replace(/:$/, '')), heading: true };
+      // Render the line exactly as typed, colon included — both because hiding a
+      // character the user just typed reads as the editor eating their input, and
+      // because doing so would silently reopen the overlay/textarea width mismatch
+      // fixed earlier (the rendered line would be one character narrower than the
+      // real, invisible text underneath it). Whether the colon survives into
+      // *stored* heading text is a separate, still-open question for DAMN-2's
+      // technical design — this only decides what the live editor shows.
+      return { html: escapeHtml(text), heading: true };
     }
-    if (!isIngredient || !trimmed) return { html: escapeHtml(text), heading: false };
+    if (!isIngredient) {
+      const m = text.match(LIST_MARKER);
+      if (m) {
+        return {
+          html: `<span class="tok-list-marker">${escapeHtml(m[0])}</span>${escapeHtml(text.slice(m[0].length))}`,
+          heading: false,
+        };
+      }
+      return { html: escapeHtml(text), heading: false };
+    }
+    if (!trimmed) return { html: escapeHtml(text), heading: false };
     const words = getWords(text);
     const boundary = override != null ? Math.min(override, words.length) : autoDetectBoundary(words);
     if (boundary === 0 || !words.length) return { html: escapeHtml(text), heading: false };
@@ -441,6 +468,53 @@ Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
 
   wireField('ing-input', 'ing-overlay', ING_SEED, true, 'ing', 'ing-handles');
   wireField('steps-input', 'steps-overlay', STEPS_SEED, false, 'steps', null);
+
+  /**
+   * List auto-continuation, steps only: pressing Enter on a numbered or bulleted
+   * line starts the next line with the next marker (number incremented, bullet
+   * character repeated) instead of a bare line break. Pressing Enter on a marker
+   * with nothing typed after it ends the list — removes that empty marker rather
+   * than continuing forever, matching what Notion/Word/most Markdown editors do.
+   *
+   * setRangeText() doesn't fire an input event on its own (unlike execCommand),
+   * so this dispatches one manually to reuse the exact same renderOverlay path a
+   * real keystroke would take — no separate re-render call to keep in sync.
+   *
+   * Scope note: this only decides the *next* marker from the line Enter was
+   * pressed on. It does not renumber the rest of a numbered list if a line is
+   * inserted or removed in the middle of one — full-document renumbering on
+   * arbitrary edits is a real feature but a materially bigger one, not attempted
+   * here.
+   */
+  document.getElementById('steps-input').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const el = e.target;
+    const cursor = el.selectionStart;
+    if (cursor !== el.selectionEnd) return; // a real selection is being replaced — plain Enter behavior
+    const value = el.value;
+    const lineStart = value.lastIndexOf('\n', cursor - 1) + 1;
+    const lineEnd = value.indexOf('\n', cursor);
+    const beforeCursor = value.slice(lineStart, cursor);
+    const afterCursor = value.slice(cursor, lineEnd === -1 ? value.length : lineEnd);
+
+    const numbered = beforeCursor.match(/^(\s*)(\d+)([.)])(\s+)/);
+    const bulleted = !numbered && beforeCursor.match(/^(\s*)([-*•])(\s+)/);
+    const match = numbered || bulleted;
+    if (!match) return; // not on a list line — let the browser insert a normal newline
+
+    const isEmpty = beforeCursor.slice(match[0].length).trim() === '' && afterCursor.trim() === '';
+    e.preventDefault();
+    if (isEmpty) {
+      el.setRangeText('', lineStart, cursor, 'end');
+    } else if (numbered) {
+      const [, indent, num, punct, gap] = numbered;
+      el.setRangeText('\n' + indent + (Number(num) + 1) + punct + gap, cursor, cursor, 'end');
+    } else {
+      const [, indent, marker, gap] = bulleted;
+      el.setRangeText('\n' + indent + marker + gap, cursor, cursor, 'end');
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 
   // Dragging a boundary handle: delegated, since renderOverlay rebuilds the handle
   // DOM on every keystroke and every drag step — a per-node listener would go stale
