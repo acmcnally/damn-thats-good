@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DAMN-2 — Entry option 2: live inline tokenization</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../../apps/web/src/styles/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Rubik', var(--font-sans); background: var(--color-bg-primary); color: var(--color-text-primary); }
+
+  .mock-meta { position: sticky; top: 0; z-index: 50; padding: 10px 20px; background: #14100c; color: #e8ddd0; font: 13px/1.4 system-ui, sans-serif; border-bottom: 1px solid #2c2318; display: flex; gap: 16px; align-items: baseline; }
+  .mock-meta strong { font-weight: 600; }
+  .mock-meta span { color: #a89680; }
+  .mock-meta a { margin-left: auto; color: #e8a978; text-decoration: none; font-weight: 600; }
+
+  .app { display: grid; grid-template-columns: var(--rail-width) 1fr; grid-template-rows: var(--topbar-height) 1fr; min-height: calc(100vh - 37px); grid-template-areas: 'nav topbar' 'nav main'; }
+  .rail { grid-area: nav; background: var(--color-bg-secondary); border-right: 1px solid var(--color-border); padding: var(--space-4) var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+  .create { width: 100%; min-height: 44px; padding: 11px var(--space-4); border: none; border-radius: var(--radius-full); background: var(--color-accent); color: var(--color-text-on-accent); font-weight: var(--weight-bold); font-size: var(--text-md); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-bottom: var(--space-2); font-family: inherit; }
+  .navItem { display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-3); border-radius: var(--radius-md); color: var(--color-text-secondary); font-weight: var(--weight-medium); font-size: var(--text-md); text-decoration: none; min-height: 44px; }
+  .navItem.active { background: var(--color-accent-muted); color: var(--color-accent); }
+  .navItem svg { width: 18px; height: 18px; flex: none; }
+  .divider { height: 1px; background: var(--color-border); margin: var(--space-3) var(--space-2); }
+  .topbar { grid-area: topbar; display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-5); border-bottom: 1px solid var(--color-border); background: var(--color-bg-secondary); }
+  .spacer { flex: 1; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-accent-muted); color: var(--color-accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+  .main { grid-area: main; overflow: auto; padding: var(--space-6) var(--space-7); max-width: 980px; }
+
+  .editbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); margin-bottom: var(--space-6); }
+  .title-input { font-size: var(--text-3xl); font-weight: var(--weight-bold); border: none; background: transparent; color: var(--color-text-primary); width: 100%; padding: 0; font-family: inherit; }
+  .title-input:focus { outline: none; }
+  .meta-row { display: flex; gap: var(--space-4); margin-top: var(--space-2); }
+  .meta-row input { border: none; background: transparent; color: var(--color-text-secondary); font-size: var(--text-sm); font-family: inherit; padding: 0; }
+  .actions { display: flex; gap: var(--space-2); flex: none; }
+  .btn { font-family: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold); border-radius: var(--radius-full); padding: 10px 20px; cursor: pointer; border: 1.5px solid transparent; }
+  .btn-primary { background: var(--color-accent); color: var(--color-text-on-accent); }
+  .btn-primary:hover { background: var(--color-accent-hover); }
+  .btn-ghost { background: transparent; border-color: var(--color-border-strong); color: var(--color-text-primary); }
+  .btn-ghost:hover { background: var(--color-bg-tertiary); }
+
+  .panel { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-bottom: var(--space-5); }
+  .panel-head { padding: var(--space-4) var(--space-5) 0; }
+  .panel-head h2 { font-size: var(--text-lg); margin: 0 0 2px; }
+  .panel-head .hint { color: var(--color-text-tertiary); font-size: var(--text-sm); margin: 0; }
+  .panel-body { padding: var(--space-5); }
+
+  .editable {
+    min-height: 180px; border: 1px solid var(--color-border); border-radius: var(--radius-md);
+    padding: var(--space-4); font: var(--text-base)/1.8 var(--font-sans); color: var(--color-text-primary);
+    background: var(--color-bg-primary); white-space: pre-wrap;
+  }
+  .editable:focus { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+  .eline { min-height: 1.8em; }
+  .eline.eheading { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-accent); text-transform: uppercase; letter-spacing: var(--tracking-caps); margin-top: 10px; }
+  .eline.eheading:first-child { margin-top: 0; }
+  .tok-amt { background: var(--color-accent-muted); color: var(--color-accent); border-radius: 5px; padding: 1px 5px; font-weight: var(--weight-semibold); }
+
+  .legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); color: var(--color-text-tertiary); font-size: var(--text-xs); }
+  .legend .tok-amt { font-size: var(--text-xs); }
+</style>
+</head>
+<body>
+
+<header class="mock-meta">
+  <strong>Option 2 — Live inline tokenization</strong>
+  <span>One continuous editable surface, like plain text. Recognized quantity + unit get a soft live highlight as you type or paste — no mode switch, ever. A line ending in ":" becomes a section heading automatically.</span>
+  <a href="index.html">← compare all options</a>
+</header>
+
+<div class="app">
+  <nav class="rail" aria-label="Primary">
+    <button class="create" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Create</span></button>
+    <a class="navItem active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Recipes</a>
+    <a class="navItem" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>Shopping Lists</a>
+    <div class="divider"></div>
+    <a class="navItem" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>Data</a>
+  </nav>
+  <div class="topbar"><div class="spacer"></div><div class="avatar">A</div></div>
+
+  <main class="main">
+    <div class="editbar">
+      <div style="flex:1">
+        <input class="title-input" placeholder="Recipe title" value="Weeknight White Bean Chili">
+        <div class="meta-row">
+          <input placeholder="Servings" value="Serves 4" style="width:100px">
+          <input placeholder="Tags (comma separated)" value="Dinner, Freezer-friendly" style="width:260px">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-ghost" type="button">Cancel</button>
+        <button class="btn btn-primary" type="button">Save recipe</button>
+      </div>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Ingredients</h2>
+        <p class="hint">Type or paste freely — quantities and units highlight as you go.</p>
+      </div>
+      <div class="panel-body">
+        <div class="editable" id="ing-editable" contenteditable="true" data-mode="ing"></div>
+        <div class="legend"><span class="tok-amt">2 tbsp</span> recognized amount + unit — everything else is the ingredient, untouched.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Steps</h2>
+        <p class="hint">One step per line or paragraph. Markdown supported.</p>
+      </div>
+      <div class="panel-body">
+        <div class="editable" id="steps-editable" contenteditable="true" data-mode="steps"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const UNITS = ['tbsp','tsp','cup','cups','oz','lb','lbs','g','kg','ml','l','clove','cloves','can','cans','pinch','dash'];
+  const ING_SEED = `For the chili:
+2 tbsp olive oil
+1 yellow onion, diced
+3 cloves garlic, minced
+1 lb ground turkey
+2 tsp ground cumin
+1 tsp smoked paprika
+1/2 tsp cayenne
+2 (15 oz) cans white beans, drained
+1 (4 oz) can diced green chiles
+3 cups chicken broth
+
+For serving:
+Shredded cheddar
+Sliced avocado
+Lime wedges
+Tortilla chips`;
+  const STEPS_SEED = `For the chili:
+Heat olive oil in a large pot over medium heat.
+Add onion and cook until soft, about 5 minutes.
+Stir in garlic, cumin, paprika, and cayenne; cook 1 minute until fragrant.
+Add turkey and cook, breaking it up, until browned.
+Stir in beans, chiles, and broth. Bring to a simmer.
+Reduce heat and simmer uncovered 25 minutes, stirring occasionally.
+
+For serving:
+Ladle into bowls and top with cheese, avocado, and a squeeze of lime.`;
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function renderLine(text, isIngredient) {
+    const trimmed = text.trim();
+    if (/:$/.test(trimmed)) {
+      return { html: escapeHtml(trimmed.replace(/:$/, '')), heading: true };
+    }
+    if (!isIngredient || !trimmed) return { html: escapeHtml(text), heading: false };
+    const qtyMatch = trimmed.match(/^([\d¼½¾⅓⅔.\/]+(?:\s+[\d¼½¾⅓⅔\/]+)?)\s*/);
+    if (!qtyMatch) return { html: escapeHtml(text), heading: false };
+    let rest = trimmed.slice(qtyMatch[0].length);
+    const words = rest.split(' ');
+    const firstWord = (words[0] || '').toLowerCase().replace(/[(),]/g, '');
+    let unit = '';
+    if (UNITS.includes(firstWord) || UNITS.includes(firstWord.replace(/s$/, ''))) {
+      unit = words.shift();
+      rest = words.join(' ');
+    }
+    const amt = [qtyMatch[1], unit].filter(Boolean).join(' ');
+    return { html: `<span class="tok-amt">${escapeHtml(amt)}</span> ${escapeHtml(rest)}`, heading: false };
+  }
+
+  function getCaretOffset(el) {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return 0;
+    const range = sel.getRangeAt(0);
+    const pre = range.cloneRange();
+    pre.selectNodeContents(el);
+    pre.setEnd(range.endContainer, range.endOffset);
+    return pre.toString().length;
+  }
+
+  function setCaretOffset(el, offset) {
+    const sel = window.getSelection();
+    const range = document.createRange();
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    let node, remaining = offset;
+    while ((node = walker.nextNode())) {
+      if (remaining <= node.length) {
+        range.setStart(node, Math.max(0, remaining));
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      remaining -= node.length + 1; // +1 for the implicit newline between line divs
+    }
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function seedEditable(el, text, isIngredient) {
+    el.innerHTML = text.split('\n').map(line => {
+      const r = renderLine(line, isIngredient);
+      return `<div class="eline${r.heading ? ' eheading' : ''}">${r.html || '<br>'}</div>`;
+    }).join('');
+  }
+
+  function rerender(el, isIngredient) {
+    const offset = getCaretOffset(el);
+    const text = el.innerText.replace(/\n$/, '');
+    seedEditable(el, text, isIngredient);
+    setCaretOffset(el, offset);
+  }
+
+  const ingEl = document.getElementById('ing-editable');
+  const stepsEl = document.getElementById('steps-editable');
+  seedEditable(ingEl, ING_SEED, true);
+  seedEditable(stepsEl, STEPS_SEED, false);
+
+  ingEl.addEventListener('input', () => rerender(ingEl, true));
+  stepsEl.addEventListener('input', () => rerender(stepsEl, false));
+</script>
+
+</body>
+</html>
