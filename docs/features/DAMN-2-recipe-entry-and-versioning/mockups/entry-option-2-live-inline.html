@@ -122,16 +122,26 @@
    * spans. Re-rendering that layer on every keystroke never touches the real cursor,
    * because the cursor was never anything but the textarea's own.
    */
-  .token-field { position: relative; min-height: 180px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-primary); overflow: hidden; }
+  /*
+   * Grows to fit its content instead of scrolling internally (owner feedback —
+   * a small fixed-height box that scrolls hides the ingredient list from a
+   * glance). The textarea is the sizing driver: it's normal flow now, not
+   * absolutely positioned, so .token-field's own height (and therefore the
+   * overlay/handles layers stacked on top via inset:0) just follows however
+   * tall the textarea's content actually makes it — autoGrow() (in the script)
+   * keeps its explicit height in sync with scrollHeight on every keystroke.
+   */
+  .token-field { position: relative; min-height: 90px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-primary); }
   .token-field:focus-within { outline: 2px solid var(--color-focus); outline-offset: 1px; }
   .token-field .layer {
-    position: absolute; inset: 0; margin: 0; padding: var(--space-4); border: none;
+    margin: 0; padding: var(--space-4); border: none;
     font: var(--text-base)/1.8 var(--font-sans); white-space: pre-wrap; word-wrap: break-word;
-    box-sizing: border-box; overflow: auto;
+    box-sizing: border-box;
   }
+  .token-field .overlay, .token-field .handles { position: absolute; inset: 0; overflow: hidden; }
   .token-field .overlay { color: var(--color-text-primary); pointer-events: none; }
   .token-field textarea.input-layer {
-    resize: none; background: transparent;
+    display: block; width: 100%; resize: none; overflow: hidden; background: transparent;
     /* Both are needed: WebKit (Safari) can otherwise let -webkit-text-fill-color's
        UA default win over `color`, which also swallows the caret — not just the
        text — since WebKit ties caret rendering to the fill color, not `color`
@@ -181,7 +191,7 @@
    */
   .token-field .handles { pointer-events: none; }
   .tok-handle {
-    position: absolute; width: 10px; transform: translateX(-5px);
+    position: absolute; width: 10px; transform: translateX(-5px); touch-action: none;
     cursor: ew-resize; pointer-events: auto; opacity: 0.28; transition: opacity var(--dur-quick) var(--ease-out);
   }
   .tok-handle::after {
@@ -201,6 +211,57 @@
 
   .legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); color: var(--color-text-tertiary); font-size: var(--text-xs); }
   .legend .tok-amt { font-size: var(--text-xs); }
+
+  /* ---- mobile (<=640px, matches NavRail.tsx's real MOBILE_MEDIA_QUERY cutoff) --- */
+  .tabbar { display: none; }
+  @media (max-width: 640px) {
+    .rail { display: none; }
+    .tabbar {
+      --tabbar-safe-bottom: env(safe-area-inset-bottom, 0);
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      height: calc(62px + var(--tabbar-safe-bottom));
+      display: flex; align-items: stretch;
+      border-top: 1px solid var(--color-border); background: var(--color-bg-secondary);
+      padding-bottom: var(--tabbar-safe-bottom);
+    }
+    .tab {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; color: var(--color-text-tertiary); font-weight: var(--weight-medium); font-size: 11px;
+      text-decoration: none;
+    }
+    .tab.tab-active { color: var(--color-accent); }
+    .tab svg { width: 22px; height: 22px; flex: none; }
+    .fab-wrap { position: absolute; right: var(--space-4); bottom: var(--fab-offset-bottom); }
+    .fab {
+      width: var(--fab-size); height: var(--fab-size); border: none; border-radius: var(--radius-full);
+      background: var(--color-accent); color: var(--color-text-on-accent);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .fab:hover { background: var(--color-accent-hover); }
+    .fab svg { width: 24px; height: 24px; }
+
+    .app { grid-template-columns: 1fr; grid-template-areas: 'topbar' 'main'; }
+    .main {
+      max-width: 100%; padding: var(--space-5) var(--space-4);
+      /* Clears the fixed FAB the same way AppShell.module.css does — bottom
+         padding derived from the FAB's own tokens so its footprint and the
+         scroll clearance for it can't drift apart. */
+      padding-bottom: calc(var(--fab-offset-bottom) + var(--fab-size) + var(--space-4));
+    }
+    .editbar { flex-direction: column; align-items: stretch; }
+    .actions { justify-content: flex-end; margin-top: var(--space-2); }
+    /* --text-3xl bold clips or forces the input to scroll internally for a
+       normal-length recipe title on a phone-width screen — a single-line <input>
+       can't wrap the way a heading would. Full title stays in the value either
+       way (nothing is lost, same as any text input scrolling past its width),
+       this just makes a typical title actually fit. */
+    .title-input { font-size: var(--text-xl); }
+
+    /* A precise mouse pointer is comfortable with a 10px target; a fingertip
+       isn't — widen the touch hit area without changing the thin visual marker
+       (::after stays a 2px line, centered, regardless of the box it sits in). */
+    .tok-handle { width: 34px; transform: translateX(-17px); }
+  }
 </style>
 </head>
 <body>
@@ -219,6 +280,18 @@
     <div class="divider"></div>
     <a class="navItem" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>Data</a>
   </nav>
+
+  <!-- Mobile-only, shown by CSS at <=640px (matches NavRail.tsx's real breakpoint) —
+       a fixed bottom tab bar with an overlapping Create FAB, replacing the rail. -->
+  <nav class="tabbar" aria-label="Primary">
+    <a class="tab tab-active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Recipes</a>
+    <a class="tab" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>Shopping</a>
+    <a class="tab" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>Data</a>
+    <div class="fab-wrap">
+      <button class="fab" type="button" aria-label="Create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+    </div>
+  </nav>
+
   <div class="topbar"><div class="spacer"></div><div class="avatar">A</div></div>
 
   <main class="main">
@@ -449,20 +522,27 @@ For serving:
     }
   }
 
+  /** Grows the textarea to fit its content — no internal scrollbar, ever. Reset to
+   * 'auto' first so shrinking (e.g. after deleting a line) is measured correctly;
+   * scrollHeight only ever reports "how tall would this need to be," never shrinks
+   * the element on its own. */
+  function autoGrow(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }
+
   function wireField(inputId, overlayId, seed, isIngredient, field, handlesId) {
     const input = document.getElementById(inputId);
     const overlay = document.getElementById(overlayId);
     const handles = handlesId ? document.getElementById(handlesId) : null;
     input.value = seed;
     renderOverlay(overlay, seed, isIngredient, field, handles);
+    autoGrow(input);
     // The textarea is the only editable surface — the browser owns cursor/selection
     // entirely. Re-rendering the overlay on every keystroke never touches it.
-    input.addEventListener('input', () => renderOverlay(overlay, input.value, isIngredient, field, handles));
-    // Layers are stacked, not scrolled together automatically — keep the highlight
-    // (and handle) layers' scroll position matched to what's actually being typed in.
-    input.addEventListener('scroll', () => {
-      overlay.scrollTop = input.scrollTop;
-      if (handles) handles.scrollTop = input.scrollTop;
+    input.addEventListener('input', () => {
+      autoGrow(input);
+      renderOverlay(overlay, input.value, isIngredient, field, handles);
     });
   }
 
@@ -518,26 +598,26 @@ For serving:
 
   // Dragging a boundary handle: delegated, since renderOverlay rebuilds the handle
   // DOM on every keystroke and every drag step — a per-node listener would go stale
-  // the moment anything re-renders.
+  // the moment anything re-renders. Mouse and touch share this same core logic —
+  // only how the starting handle and the live coordinate are read differs, which
+  // is exactly what's on a phone this needs: the drag itself, and the fix for the
+  // cursor artifacts, are the same gesture either way.
   let dragState = null;
-
   let dragCaptureEl = null;
 
-  document.addEventListener('mousedown', (e) => {
-    const handle = e.target.closest('.tok-handle');
-    if (!handle) return;
-    e.preventDefault();
+  function startDrag(handle) {
     dragState = { field: handle.closest('.handles').id.replace('-handles', ''), lineIndex: Number(handle.dataset.line) };
     document.body.classList.add('tok-dragging');
-    // See the .drag-capture CSS comment: keeps the pointer over one stable element
-    // for the whole drag so the cursor icon can't flicker as the handle/overlay DOM
-    // gets rebuilt underneath it on every move.
+    // See the .drag-capture CSS comment: keeps the pointer/touch over one stable
+    // element for the whole drag so the cursor icon (mouse) or scroll gesture
+    // (touch) can't get confused as the handle/overlay DOM rebuilds underneath it
+    // on every move.
     dragCaptureEl = document.createElement('div');
     dragCaptureEl.className = 'drag-capture';
     document.body.appendChild(dragCaptureEl);
-  });
+  }
 
-  document.addEventListener('mousemove', (e) => {
+  function updateDrag(clientX) {
     if (!dragState) return;
     const { field, lineIndex } = dragState;
     const input = document.getElementById(field + '-input');
@@ -549,26 +629,59 @@ For serving:
     if (!lineEl || !words.length) return;
     // Snap to the nearest word boundary, never mid-word — every real recipe line's
     // amount/ingredient split falls on a word boundary, so this keeps the gesture
-    // fast without needing sub-word precision from the user.
+    // fast without needing sub-word (or, on touch, sub-fingertip) precision.
     let best = 0, bestDist = Infinity;
     for (let b = 0; b <= words.length; b++) {
       const charOffset = b === 0 ? 0 : words[b - 1].end;
       const x = xAtOffset(lineEl, charOffset);
       if (x == null) continue;
-      const dist = Math.abs(x - e.clientX);
+      const dist = Math.abs(x - clientX);
       if (dist < bestDist) { bestDist = dist; best = b; }
     }
     setOverride(field, lineIndex, best);
     renderOverlay(overlayEl, input.value, true, field, handlesEl);
-  });
+  }
 
-  document.addEventListener('mouseup', () => {
-    if (dragState) {
-      dragState = null;
-      document.body.classList.remove('tok-dragging');
-      if (dragCaptureEl) { dragCaptureEl.remove(); dragCaptureEl = null; }
-    }
+  function endDrag() {
+    if (!dragState) return;
+    dragState = null;
+    document.body.classList.remove('tok-dragging');
+    if (dragCaptureEl) { dragCaptureEl.remove(); dragCaptureEl = null; }
+  }
+
+  document.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.tok-handle');
+    if (!handle) return;
+    e.preventDefault();
+    startDrag(handle);
   });
+  document.addEventListener('mousemove', (e) => updateDrag(e.clientX));
+  document.addEventListener('mouseup', endDrag);
+
+  // { passive: false } is required on both — the whole point is to preventDefault
+  // so the page doesn't scroll or select text while a boundary drag is in
+  // progress, and passive listeners aren't allowed to call preventDefault at all.
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      const handle = e.target.closest('.tok-handle');
+      if (!handle) return;
+      e.preventDefault();
+      startDrag(handle);
+    },
+    { passive: false },
+  );
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!dragState) return;
+      e.preventDefault();
+      updateDrag(e.touches[0].clientX);
+    },
+    { passive: false },
+  );
+  document.addEventListener('touchend', endDrag);
+  document.addEventListener('touchcancel', endDrag);
 
   // ---- Tags: tokenized chips + inline add/search, no dropdowns or modals -----
   const TAG_CANDIDATES = [
