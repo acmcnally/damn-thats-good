@@ -4,7 +4,7 @@
 
 ## Status
 
-Scope locked (phase 1). UX signed off (phase 3) — see `mockups/`. This document now also covers phase 4 (technical design): concrete schema, API surface, shared types, migration plan, test plan, and every open decision resolved.
+Scope locked (phase 1). UX signed off (phase 3) — see `mockups/`. This document covers phase 4 (technical design): concrete schema, API surface, shared types, migration plan, test plan, and every open decision resolved. **Phase 5 (adversarial design review) complete** — a fresh-context review against the frozen requirements, mockups, and this doc surfaced 6 must-fix gaps (line-id reconciliation had no mechanism, the concurrency guard wasn't actually atomic, a Drizzle circular-FK typing issue, missing duplicate-id validation, a `DELETE` FK-violation bug, and an unspecified `PATCH` tag-mutation path) and 3 discussion items (tag case-sensitivity, whether a boundary re-confirmation should count as a content change, and date-vs-integer for the metadata concurrency token). All resolved with the owner and applied below.
 
 ## Scope (locked)
 
@@ -62,7 +62,7 @@ import { z } from 'zod';
 
 export const CONTENT_SCHEMA_VERSION = 1 as const;
 
-const lineId = z.uuid(); // crypto.randomUUID() — assigned once, client-side, at line creation
+const lineId = z.uuid(); // crypto.randomUUID() — assigned by the client-side reconciler below, never re-derived from array position
 
 const headingLine = z.object({
   id: lineId,
@@ -92,16 +92,47 @@ const stepLine = z.object({
   text: z.string().trim().min(1).max(4000), // markdown; list markers are literal characters
 });
 
+function uniqueIds(entries: { id: string }[], ctx: z.RefinementCtx) {
+  const seen = new Set<string>();
+  for (const [i, e] of entries.entries()) {
+    if (seen.has(e.id)) ctx.addIssue({ code: 'custom', message: `duplicate line id ${e.id}`, path: [i, 'id'] });
+    seen.add(e.id);
+  }
+}
+
 export const recipeContentSchema = z.object({
   contentSchemaVersion: z.literal(CONTENT_SCHEMA_VERSION),
-  ingredients: z.array(z.discriminatedUnion('kind', [headingLine, ingredientLine])).max(300),
-  steps: z.array(z.discriminatedUnion('kind', [headingLine, stepLine])).max(300),
+  ingredients: z.array(z.discriminatedUnion('kind', [headingLine, ingredientLine])).max(300).superRefine(uniqueIds),
+  steps: z.array(z.discriminatedUnion('kind', [headingLine, stepLine])).max(300).superRefine(uniqueIds),
 });
 
 export type RecipeContent = z.infer<typeof recipeContentSchema>;
 ```
 
+*(Phase 5 fix — finding 4: the array-level `.superRefine` above is new; without it, a duplicate `id` across lines validated successfully despite the test plan claiming to reject it.)*
+
 `content_schema_version` (ADR-0006, clause 2) lives *inside* the JSONB document (`contentSchemaVersion`) rather than as a separate DB column — it needs to round-trip with export (ADR-0011) regardless, and V1 has no migration-in-place need for a queryable column. Add a generated/indexed column later only if a real "find recipes on schema version N" migration task shows up.
+
+### Line reconciliation (phase 5 fix — finding 1)
+
+The signed-off editor (`entry-option-2-live-inline.html`) has no persistent line model — every keystroke re-splits the whole textarea on `\n` and re-tokenizes from scratch, purely for live display. That's fine for rendering, but ADR-0006's stable-id requirement needs an actual mechanism deciding "is this the same logical line as before," or a naive index-based scheme will silently reassign ids the moment a line is inserted or removed anywhere above another line — corrupting `diffContent`/DAMN-3's history for that recipe.
+
+**Resolved: reconcile once per field, on blur/save — not per keystroke.** The live overlay/boundary rendering stays exactly as today: ephemeral, recomputed from raw text on every render, structurally disconnected from stored ids. Only when a field (`ingredients` or `steps`) loses focus or the recipe is saved does `apps/web` run a reconciliation pass against the last-committed line array for that field:
+
+```ts
+// packages/shared/src/recipe-content.ts (cont.) — used by apps/web's entry form,
+// and trivially by DAMN-5's URL import with previous = []
+export function reconcileLines<T extends { id: string }>(
+  previous: T[],
+  currentRawLines: string[],
+  canonicalText: (line: T) => string, // `raw` for ingredient lines, `text` for heading/step lines
+  parseNew: (raw: string) => Omit<T, 'id'>, // fresh auto-parse for a line with no previous match
+): T[];
+```
+
+Matching: an LCS (longest-common-subsequence) pass over `previous.map(canonicalText)` vs. `currentRawLines`, treating each line as one atomic token (no within-line diffing — a hand-rolled LCS is enough at this scale, the schema caps each array at 300 lines). An exact text match keeps the previous line's `id` *and* its other fields (an untouched ingredient line is not re-parsed — its `parseStatus`/`quantity`/`item` survive as-is). A line with no match anywhere in `previous` is new: mint `crypto.randomUUID()`, run `parseNew` (fresh auto-detection, `parseStatus: 'auto'`). Ambiguity (duplicate identical lines where only one instance survives, or vice versa) resolves by nearest index — low-stakes, since a wrong resolution there attributes a diff entry to a line that reads identically anyway, not data corruption. A previous line with no match at all is dropped; its id retires.
+
+Reconciliation happens client-side (`apps/web`), before content ever reaches the API — the server only ever sees a fully id-tagged `RecipeContent` and validates its shape (plus the new duplicate-id check above), it never needs reconciliation history.
 
 ### `diffContent`
 
@@ -124,10 +155,14 @@ export function contentEquals(a: RecipeContent, b: RecipeContent): boolean; // d
 
 Diffs each array (ingredients, steps) independently, keyed by `id` — an id present in both with any field changed is `changed`; present only in `a` is `removed`; only in `b` is `added`; identical in both is `unchanged`. **Reordering is intentionally not a distinct diff type in this issue's scope** — DAMN-2 only needs `contentEquals` (the save-time "did anything change?" check, i.e. `diffContent(a, b)` producing no `added`/`removed`/`changed` entries). Order-aware move detection and the diff *rendering* are DAMN-3's job; this issue ships the function and its degenerate case, not the UI that makes full use of it.
 
+**Phase 5 fix — finding 8: `parseStatus` is excluded from equality.** An ingredient line's `parseStatus` field is bookkeeping about *how* `quantity`/`item` were derived, not content a user would recognize as an edit — e.g. dragging a boundary handle and releasing it back where it started leaves `quantity`/`item`/`raw` byte-identical but would otherwise flip `parseStatus` from `'auto'` to `'confirmed'`. Comparing it would mint a version for zero substantive change. `changed`/`unchanged` classification for an `ingredientLine` therefore compares `raw`, `quantity`, and `item` only; `parseStatus` is still stored and returned, just not part of the change-detection.
+
 ### `recipes` table
 
 ```ts
 // packages/db/src/schema.ts (additions)
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+
 export const recipeVisibility = pgEnum('recipe_visibility', ['private', 'unlisted', 'public']);
 
 export const recipes = pgTable('recipes', {
@@ -137,15 +172,18 @@ export const recipes = pgTable('recipes', {
   servings: text('servings'), // free text — "serves 4-6", "makes a dozen"; see decision #5
   provenance: text('provenance'),
   visibility: recipeVisibility('visibility').notNull().default('private'),
-  currentVersionId: uuid('current_version_id').references(() => recipeVersions.id),
+  currentVersionId: uuid('current_version_id').references((): AnyPgColumn => recipeVersions.id),
+  rowVersion: integer('row_version').notNull().default(1), // see decision #7
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 ```
 
+*(Phase 5 fix — finding 3: `currentVersionId`'s reference callback is explicitly typed `(): AnyPgColumn => ...`. `recipes` and `recipe_versions` reference each other, a genuine TypeScript inference cycle — without the explicit `AnyPgColumn` return type, `tsc --noEmit` rejects this as "referenced directly or indirectly in its own type annotation." The SQL Drizzle emits was never the problem, only the static typing.)*
+
 `currentVersionId` is nullable at the DB level only to break the insertion cycle with `recipe_versions` (see migration plan) — `RecipesService` is the only writer, and the invariant "every `recipes` row has a non-null `currentVersionId` once its creating transaction commits" is enforced there, the same style as `BookProvisioningRaceError` documents an application-level invariant today.
 
-`updatedAt` doubles as the optimistic-concurrency token for non-content fields (see decision #7) — bumped by `RecipesService` on every metadata `PATCH`.
+`rowVersion` is the optimistic-concurrency token for non-content fields (see decision #7, revised) — an integer counter, incremented atomically by `RecipesService` on every metadata `PATCH`. `updatedAt` remains a plain last-modified timestamp for display/sort purposes only; it no longer participates in concurrency control.
 
 ### `recipe_versions` table
 
@@ -154,7 +192,9 @@ export const recipeVersions = pgTable(
   'recipe_versions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    recipeId: uuid('recipe_id').notNull().references(() => recipes.id),
+    recipeId: uuid('recipe_id')
+      .notNull()
+      .references(() => recipes.id, { onDelete: 'cascade' }),
     versionNumber: integer('version_number').notNull(),
     content: jsonb('content').notNull().$type<RecipeContent>(),
     authorId: uuid('author_id').notNull().references(() => users.id),
@@ -165,7 +205,11 @@ export const recipeVersions = pgTable(
 );
 ```
 
+*(Phase 5 fix — finding 5: `onDelete: 'cascade'` on `recipeId` here and on `recipe_tags.recipeId` below. Without it, every recipe — which always has at least one version from creation — FK-violates on `DELETE /recipes/:id`. `recipes.current_version_id` pointing into this table doesn't create the reverse problem: that FK lives on the row being deleted, not on a row blocking the delete.)*
+
 ### `tags` + `recipe_tags` (decision #6)
+
+Tag names are stored **normalized to lowercase, trimmed** at write time — not preserved in whatever case the user typed and case-folded only at comparison time. This is decision #6's phase-5 revision (see below): a plain unique index is cheaper than a functional one, and every comparison/dedup site gets to use plain equality instead of `lower()`/`ILIKE` everywhere. Display casing is unaffected — the mockup's tag chips are already rendered uppercase purely via CSS (`text-transform: uppercase` on `.tag-chip`), fully decoupled from the stored value.
 
 ```ts
 export const tags = pgTable(
@@ -173,17 +217,21 @@ export const tags = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     bookId: uuid('book_id').notNull().references(() => books.id),
-    name: text('name').notNull(),
+    name: text('name').notNull(), // stored lowercase+trimmed — see above
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('tags_book_name_idx').on(t.bookId, sql`lower(${t.name})`)],
+  (t) => [uniqueIndex('tags_book_name_idx').on(t.bookId, t.name)],
 );
 
 export const recipeTags = pgTable(
   'recipe_tags',
   {
-    recipeId: uuid('recipe_id').notNull().references(() => recipes.id),
-    tagId: uuid('tag_id').notNull().references(() => tags.id),
+    recipeId: uuid('recipe_id')
+      .notNull()
+      .references(() => recipes.id, { onDelete: 'cascade' }),
+    tagId: uuid('tag_id')
+      .notNull()
+      .references(() => tags.id, { onDelete: 'cascade' }), // a tag itself is never cascade-deleted (still book-scoped, may be used elsewhere) — only its join rows
   },
   (t) => [primaryKey({ columns: [t.recipeId, t.tagId] })],
 );
@@ -201,15 +249,28 @@ One Drizzle migration (`drizzle-kit generate`), in this order (tables are create
 
 Drizzle's schema file expresses steps 2–4 as ordinary `.references()` calls (Drizzle resolves the two-table circular reference from the TS module graph and emits the FK-add as a separate statement in the generated SQL automatically) — no hand-written SQL needed, same `drizzle-kit generate` → commit → `migrate` flow as the existing `books`/`users` migrations.
 
+**Tag normalization (phase 5 fix — findings 6, 7):** every submitted `tags: string[]` — on both create and metadata update — is trimmed, lowercased, and de-duplicated via `Set` as a Zod `.transform` on the shared schema (`packages/shared`), before it ever reaches a service. This is cheap, runs once for both apps, and sidesteps the question of what Postgres does with same-statement duplicate `ON CONFLICT` targets entirely, since the input can no longer contain two entries that collide on `(bookId, name)`.
+
 **Write path for creating a recipe** (`RecipesService.create`), one DB transaction:
 1. Resolve the caller's book via `BooksService.getOrCreateForOwner` (existing pattern).
-2. Upsert each submitted tag by `(bookId, lower(name))`, `ON CONFLICT DO NOTHING` + re-select on conflict — same race-safe shape as `BooksService.getOrCreateForOwner`.
+2. Upsert each (already-normalized) submitted tag by `(bookId, name)`, `ON CONFLICT DO NOTHING` + re-select on conflict — same race-safe shape as `BooksService.getOrCreateForOwner`.
 3. `INSERT INTO recipes (... current_version_id = NULL ...) RETURNING id`.
 4. `INSERT INTO recipe_versions (recipe_id, version_number = 1, content, author_id) RETURNING id`.
 5. `INSERT INTO recipe_tags` rows linking the recipe to the tag ids from step 2.
 6. `UPDATE recipes SET current_version_id = <id from 4>`.
 
 All in one transaction — never observable outside it with a null `current_version_id`.
+
+**Write path for updating recipe metadata** (`RecipesService.updateMetadata`, phase 5 fix — finding 6), one DB transaction:
+1. `UPDATE recipes SET title = ..., servings = ..., provenance = ..., visibility = ..., row_version = row_version + 1, updated_at = now() WHERE id = $id AND row_version = $expectedRowVersion RETURNING *`. Zero rows → 412, return the current row (fetched separately) for the client's reconcile prompt.
+2. If `tags` was included in the request: diff the (normalized) submitted names against the recipe's currently-linked tag names. Upsert any new names (same get-or-create shape as create's step 2), `INSERT` new `recipe_tags` link rows, `DELETE` link rows for names no longer present.
+
+**Write path for saving content** (`RecipesService.saveContent`, phase 5 fix — finding 2), one DB transaction:
+1. `SELECT current_version_id, ... FROM recipes WHERE id = $id FOR UPDATE` — locks the row; a concurrent save against the same recipe blocks here instead of racing past a plain read.
+2. Compare the locked `current_version_id` to `baseVersionId`. Mismatch → `ROLLBACK`, 412 with the current version attached.
+3. Match → `contentEquals(current.content, body.content)`. Equal → `ROLLBACK` (nothing to write), return the existing version, 200. Different → `INSERT INTO recipe_versions (..., version_number = previous + 1, ...)`, `UPDATE recipes SET current_version_id = <new id>`, `COMMIT`, return the new version, 200.
+
+The row lock (not a bare compare-then-write) is what makes this a real compare-and-swap rather than a TOCTOU race — two concurrent saves against the same stale `baseVersionId` now serialize through the lock, and the loser sees the *other* request's committed `current_version_id` at step 2, not the stale value it started with.
 
 ## API surface
 
@@ -220,9 +281,9 @@ REST, resource-oriented, all routes behind the existing global `JwtAuthGuard`. N
 | `GET` | `/recipes` | List, scoped to the caller's book. Lightweight shape (no `content`) — `id, title, servings, tags, visibility, updatedAt`. Sorted by `updatedAt desc`. No query params in V1 (see Non-goals). |
 | `GET` | `/recipes/:id` | Detail — full metadata + current version's `content` + `currentVersionId`/`versionNumber`. 404 if the recipe isn't in the caller's book. |
 | `POST` | `/recipes` | Create. Body: `{ title, servings?, provenance?, tags: string[], content: { ingredients, steps } }` (server stamps `contentSchemaVersion`). Runs the transaction above. Returns the detail shape, 201. |
-| `PATCH` | `/recipes/:id` | Metadata only (title, servings, provenance, tags, visibility) — never touches `content`/version. Body carries `expectedUpdatedAt`; mismatch → 412 with the current row. |
-| `PUT` | `/recipes/:id/content` | Content save. Body: `{ baseVersionId, content }`. If `baseVersionId !== recipes.currentVersionId` → 412 with the current version. Else runs `contentEquals(current.content, body.content)`: if equal, no-op, return the existing version (200); if changed, insert a new `recipe_versions` row (`version_number` = previous + 1) and update `recipes.currentVersionId` (200, new version). |
-| `DELETE` | `/recipes/:id` | Hard delete (decision #8). |
+| `PATCH` | `/recipes/:id` | Metadata only (title, servings, provenance, tags, visibility) — never touches `content`/version. Body carries `expectedRowVersion` (integer, see decision #7); mismatch → 412 with the current row. |
+| `PUT` | `/recipes/:id/content` | Content save. Body: `{ baseVersionId, content }`. Atomic compare-and-swap under a row lock (see "Write path for saving content") — stale `baseVersionId` → 412 with the current version; else `contentEquals` decides no-op (200, existing version) vs. a new `recipe_versions` row (200, new version). |
+| `DELETE` | `/recipes/:id` | Hard delete (decision #8). `ON DELETE CASCADE` on `recipe_versions`/`recipe_tags` handles child-row cleanup at the DB level — a single-statement delete, no application-level multi-step transaction needed. |
 | `GET` | `/tags` | Book-scoped tag list, for the `+` add-tag control's search-or-create. `{ id, name }[]`, sorted by name. |
 
 `RecipesModule` owns `recipes`, `recipe_versions`, and `tags`/`recipe_tags` together (decision below) — imports `BooksModule`.
@@ -235,21 +296,28 @@ REST, resource-oriented, all routes behind the existing global `JwtAuthGuard`. N
 ```ts
 export const visibilitySchema = z.enum(['private', 'unlisted', 'public']);
 
+// Phase 5 fix — findings 6, 7: trim + lowercase + de-dupe once, here, so both apps and
+// every write path (create, metadata update) get normalized tag names for free.
+const tagsSchema = z
+  .array(z.string().trim().min(1).max(60))
+  .max(50)
+  .transform((tags) => [...new Set(tags.map((t) => t.toLowerCase()))]);
+
 export const createRecipeRequestSchema = z.object({
   title: z.string().trim().min(1).max(200),
   servings: z.string().trim().max(120).optional(),
   provenance: z.string().trim().max(2000).optional(),
-  tags: z.array(z.string().trim().min(1).max(60)).max(50),
+  tags: tagsSchema,
   content: recipeContentSchema.omit({ contentSchemaVersion: true }),
 });
 export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
 
 export const updateRecipeMetadataRequestSchema = z.object({
-  expectedUpdatedAt: z.iso.datetime(),
+  expectedRowVersion: z.number().int().positive(), // phase 5 fix — finding 9, was expectedUpdatedAt
   title: z.string().trim().min(1).max(200).optional(),
   servings: z.string().trim().max(120).optional(),
   provenance: z.string().trim().max(2000).optional(),
-  tags: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
+  tags: tagsSchema.optional(),
   visibility: visibilitySchema.optional(),
 });
 
@@ -272,6 +340,7 @@ export interface RecipeDetail extends RecipeSummary {
   currentVersionId: string;
   currentVersionNumber: number;
   content: RecipeContent;
+  rowVersion: number; // phase 5 fix — finding 9: the client echoes this back as expectedRowVersion on the next PATCH
   createdAt: string;
 }
 ```
@@ -290,9 +359,10 @@ export interface RecipeDetail extends RecipeSummary {
 
 5. **Servings field type:** free text (`recipes.servings: text`), not a numeric column. **Recommendation, applied.** Matches the explicit no-dropdowns/no-discrete-controls product constraint from phase 3. Costs V2 scaling (DAMN-7) a small amount of future work (parsing a free-text serving count, or adding a structured numeric field alongside it) — acceptable per ADR-0006's additive-evolution allowance, and scaling's own design is DAMN-7's job, not this issue's.
 
-6. **Tags storage:** normalized `tags` (book-scoped, case-insensitive-unique) + `recipe_tags` join table, not a `text[]` column on `recipes`. **Recommendation, applied.** The mockup's `+` control explicitly offers "select an existing tag or create one" — that's a real autocomplete against the book's tag vocabulary, which a `text[]` column would need a `SELECT DISTINCT unnest(...)` workaround for and would leave prone to near-duplicate drift ("Dessert" vs "desserts"). A join table also positions tag rename/cleanup as a one-row update later, and gives `GET /tags` a clean source. The alternative (`text[]`) would have been simpler to write today; rejected because the UX already committed to tag identity, not just tag strings.
+6. **Tags storage:** normalized `tags` (book-scoped, unique) + `recipe_tags` join table, not a `text[]` column on `recipes`. **Recommendation, applied.** The mockup's `+` control explicitly offers "select an existing tag or create one" — that's a real autocomplete against the book's tag vocabulary, which a `text[]` column would need a `SELECT DISTINCT unnest(...)` workaround for and would leave prone to near-duplicate drift ("Dessert" vs "desserts"). A join table also positions tag rename/cleanup as a one-row update later, and gives `GET /tags` a clean source. The alternative (`text[]`) would have been simpler to write today; rejected because the UX already committed to tag identity, not just tag strings.
+   - **Revised (phase 5, findings 6/7):** the owner confirmed tags don't need real case sensitivity — the mockup's all-caps look is a CSS `text-transform`, not the stored value. Rather than a case-insensitive functional unique index (`lower(name)`) with `ILIKE`/`lower()` sprinkled through every query and upsert, names are normalized (trim + lowercase) once, at the Zod boundary, before any write. Cheaper: a plain unique index, plain equality everywhere, and the in-request-duplicate problem (finding 7 — `["Dessert", "dessert"]` in one submission) disappears by construction since the array is de-duplicated in the same transform.
 
-7. **Recipe-metadata optimistic-concurrency token:** reuse `recipes.updated_at`, no dedicated `row_version` integer column. **Recommendation, applied.** `updated_at` already changes on every metadata write and is timestamp-comparable; a separate counter column would be redundant state to keep in sync for no behavioral difference at this scale.
+7. **Recipe-metadata optimistic-concurrency token:** `recipes.row_version`, an integer counter — not `recipes.updated_at`. **Revised, phase 5 (finding 9).** Originally spec'd as reusing `updated_at`, reasoned as avoiding a redundant column "for no behavioral difference." The review surfaced a real behavioral difference: `updated_at` round-trips through Postgres (microsecond precision) → JSON → JS `Date` (millisecond precision) → back to the server as the CAS comparison value, and any precision or serialization drift in that path would cause **spurious 412s on saves that were never actually racing** — a worse bug than the one the guard exists to prevent, and not caught by a test plan that only exercised the stale-rejection path. An integer counter (`UPDATE ... SET row_version = row_version + 1 WHERE id = $id AND row_version = $expected`) has none of that: exact equality, no precision class of bug at all, and it mirrors the pattern this feature already uses for content (`recipe_versions.version_number`). `updated_at` stays on the row as a plain display/sort timestamp; it's simply no longer load-bearing for concurrency. (CLAUDE.md's own phrasing for this guard — "a `Recipe` row version / `updated_at`" — already named both as options; this locks in the row-version half.)
 
 8. **Recipe delete:** hard delete, `DELETE /recipes/:id`, client-side confirmation only — no `deleted_at`/trash/undo in V1. **Recommendation, applied.** No backup/trash feature has been requested anywhere in the roadmap; a soft-delete column would be unused complexity until (if ever) "I deleted the wrong recipe" becomes a real, reported pain — consistent with this project's general "add complexity only when the pain is real" posture (`CLAUDE.md` § Scope & simplicity).
 
@@ -318,11 +388,19 @@ export interface RecipeDetail extends RecipeSummary {
 - **Component (`apps/api`, Testcontainers Postgres — same shape as `books.component.test.ts`):**
   - `RecipesService.create`: recipe + version + tag rows all land atomically; tag get-or-create is race-safe under `Promise.all` (mirrors `BooksService.getOrCreateForOwner`'s own race test).
   - Content save: `contentEquals` true → no new version row; false → new version, `version_number` incremented, `currentVersionId` updated.
-  - Optimistic concurrency: stale `baseVersionId` → 412 with current version attached; stale `expectedUpdatedAt` on metadata `PATCH` → 412.
+  - **Content save race (phase 5 fix — finding 2):** two concurrent `PUT .../content` calls with the same stale `baseVersionId`, fired via `Promise.all` — exactly one succeeds (200, new version), the other gets a clean 412, not a raw constraint-violation error. The previous plan's sequential "save v2, then submit stale v1" test is kept too, but doesn't substitute for this one.
+  - Optimistic concurrency: stale `baseVersionId` on content save → 412 with current version attached; stale `expectedRowVersion` on metadata `PATCH` → 412; a **correct** `expectedRowVersion` on an uncontested `PATCH` succeeds (positive-path coverage the original plan omitted).
   - List/detail scoping: a second user's book never appears in `GET /recipes` or is reachable via `GET /recipes/:id`.
-  - Tag upsert case-insensitivity: submitting `"Dessert"` when `"dessert"` already exists in the book reuses the row.
+  - Tag upsert de-duplication: submitting `["Dessert", "dessert"]` in one request results in exactly one `tags` row; a later request submitting `"Dessert"` when `"dessert"` already exists in the book reuses it.
+  - **`PATCH` tag mutation (phase 5 fix — finding 6):** a `PATCH` that both adds a new tag name and drops an existing one in the same request ends with the correct final `recipe_tags` link set — no leftover link rows for the dropped tag.
+  - **Delete (phase 5 fix — finding 5):** `DELETE /recipes/:id` on a recipe with versions and tags succeeds and removes the `recipe_versions`/`recipe_tags` rows via cascade, not a foreign-key-violation error.
 - **Workflow (`@dtg/e2e`, Playwright):** create a recipe through the real entry UI (title, servings, provenance, tags, ingredient/step tokenization including a manual boundary correction) → save → appears in the list → open detail → edit content → save again and confirm (via API assertion, since the version-history UI is DAMN-3) that a second version was created. Scoped to the DAMN-2 happy path only; version-history/diff/revert workflow coverage is DAMN-3's.
 
-## Open (carried to phase 5)
+## Phase 5 — adversarial design review
 
-None outstanding for design purposes — every item flagged during scope-lock and UX design is resolved above. Phase 5 (adversarial design review) may surface more.
+Run as a fresh-context subagent against the frozen DAMN-2 requirement text, the mockups, this doc, the relevant ADRs, and the existing `books`/`users` code this design extends. Findings and resolutions are folded inline above (search "phase 5 fix" / "Revised, phase 5"); summary:
+
+- **Must-fix, applied:** no mechanism for per-line id stability across edits (→ "Line reconciliation" section, reconcile-on-blur/save); concurrency guard was check-then-act, not atomic (→ row-locked CAS transaction in "Write path for saving content"); Drizzle circular-FK sample wouldn't typecheck (→ `AnyPgColumn` callback); schema didn't enforce the duplicate-id rejection the test plan claimed (→ `.superRefine`); `DELETE` would FK-violate on every real recipe (→ `onDelete: 'cascade'`); `PATCH`'s tag-mutation path was unspecified (→ new write-path subsection).
+- **Discussed with the owner and resolved:** tags don't need case sensitivity — normalize to lowercase at the Zod boundary rather than case-insensitive queries everywhere (decision #6, revised); a pure boundary re-confirmation with no substantive change shouldn't mint a new version — `parseStatus` excluded from `contentEquals`; the metadata concurrency token is an integer `row_version`, not `updated_at` (decision #7, revised) — avoids a whole class of timestamp-precision/serialization bug for a check that exists specifically to prevent silent data loss.
+
+No items outstanding. Ready for phase 6 (implementation).
