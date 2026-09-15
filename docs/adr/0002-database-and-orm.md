@@ -5,7 +5,7 @@
 
 ## Context
 
-Data model is genuinely relational: multi-owner Recipe Books, visibility-scoped Recipes, a linear version history per recipe, collection references, and cross-cutting search across all of it. Need a database and an ORM/data-access layer in TypeScript. This leans on the owner's prior relational-database and ORM experience — see `CLAUDE.md`.
+Data model is genuinely relational: visibility-scoped Recipes, a linear version history per recipe, collection references, and cross-cutting search across all of it. Need a database and an ORM/data-access layer in TypeScript. This leans on the owner's prior relational-database and ORM experience — see `CLAUDE.md`.
 
 PostgreSQL is chosen on all four relevant counts: it is a stated learning target (a real RDBMS plus full-text search learned directly), it is the industry-standard, marketable choice (portability lens), it fits the owner's existing relational background, and it stays within hobbyist scope (one container, no new ongoing cost).
 
