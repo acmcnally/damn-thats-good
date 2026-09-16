@@ -24,7 +24,7 @@ import { CurrentBook } from './current-book.decorator';
 import { parseBody } from './parse-body';
 import { RecipesService } from './recipes.service';
 
-/** No route ever takes a `bookId` param — V1 has exactly one book per user (DAMN-4),
+/** No route ever takes a `bookId` param — V1 has exactly one book per user,
  * so every handler resolves the caller's book via `BookContextGuard`. */
 @Controller('recipes')
 @UseGuards(BookContextGuard)

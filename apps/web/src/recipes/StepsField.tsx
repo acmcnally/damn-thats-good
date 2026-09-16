@@ -1,7 +1,7 @@
 /**
- * Live inline tokenization for the steps field (DAMN-2 mockup, option 2). Simpler
- * than IngredientsField — no drag handles, just heading/list-marker highlighting
- * and Enter-key list auto-continuation.
+ * Live inline tokenization for the steps field (the chosen recipe-entry mockup,
+ * option 2). Simpler than IngredientsField — no drag handles, just heading/list-marker
+ * highlighting and Enter-key list auto-continuation.
  */
 
 import { type KeyboardEvent, useRef } from 'react';

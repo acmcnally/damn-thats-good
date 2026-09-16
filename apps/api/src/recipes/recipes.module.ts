@@ -7,7 +7,7 @@ import { RecipesService } from './recipes.service';
 import { TagsController } from './tags.controller';
 import { TagsService } from './tags.service';
 
-/** Owns `recipes`, `recipe_versions`, and `tags`/`recipe_tags` together (DAMN-2). */
+/** Owns `recipes`, `recipe_versions`, and `tags`/`recipe_tags` together. */
 @Module({
   imports: [BooksModule],
   controllers: [RecipesController, TagsController],

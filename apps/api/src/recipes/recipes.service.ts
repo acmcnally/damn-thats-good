@@ -56,8 +56,6 @@ export class RecipesService {
 
   async create(bookId: string, authorId: string, req: CreateRecipeRequest): Promise<RecipeDetail> {
     return this.database.db.transaction(async (tx) => {
-      const tagRows = await this.tags.getOrCreateMany(tx, bookId, req.tags);
-
       const [recipe] = await tx
         .insert(recipes)
         .values({ bookId, name: req.name, servings: req.servings, provenance: req.provenance })
@@ -74,11 +72,10 @@ export class RecipesService {
         .returning();
       if (!version) throw new Error('recipe_versions insert returned no row');
 
-      if (tagRows.length > 0) {
-        await tx
-          .insert(recipeTags)
-          .values(tagRows.map((t) => ({ recipeId: recipe.id, tagId: t.id })));
-      }
+      // Same get-or-create + link logic `updateMetadata` uses — for a brand-new
+      // recipe its "drop stale links" step is a no-op (nothing links to this id
+      // yet), so it's safe to reuse as-is rather than hand-rolling the insert.
+      await this.tags.syncRecipeTags(tx, recipe.id, bookId, req.tags);
 
       const [updated] = await tx
         .update(recipes)

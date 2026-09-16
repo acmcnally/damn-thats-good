@@ -28,8 +28,9 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   workosUserId: text('workos_user_id').notNull().unique(),
   email: text('email').notNull().unique(),
-  // Renamed from created_at/updated_at (DAMN-2 decision #7) — see the migration plan
-  // in docs/features/DAMN-2-recipe-entry-and-versioning/technical-design.md for why.
+  // Renamed from created_at/updated_at — see
+  // docs/features/DAMN-2-recipe-entry-and-versioning/technical-design.md's
+  // decision #7 for why.
   createDtTm: timestamp('create_dt_tm', { withTimezone: true }).notNull().defaultNow(),
   updateDtTm: timestamp('update_dt_tm', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -50,13 +51,13 @@ export const books = pgTable('books', {
     .unique()
     .references(() => users.id),
   name: text('name').notNull().default('My Recipe Book'),
-  // Renamed from created_at/updated_at (DAMN-2 decision #7) — see users' note above.
+  // Renamed from created_at/updated_at — see users' note above (decision #7).
   createDtTm: timestamp('create_dt_tm', { withTimezone: true }).notNull().defaultNow(),
   updateDtTm: timestamp('update_dt_tm', { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
- * DAMN-2. `private` = owners of the book only; `unlisted` = any signed-in app user
+ * `private` = owners of the book only; `unlisted` = any signed-in app user
  * with the link; `public` = visible to any signed-in app user. No enforcement logic
  * is built in V1 (decision #9) — there is no route through which one user could ever
  * see another user's book yet.
@@ -96,7 +97,8 @@ export const recipes = pgTable('recipes', {
  * Versioned content only — ingredients + steps, as a structured JSONB document
  * (ADR-0006). One row per save; versions are immutable and never updated in place,
  * so unlike every other table here there's no `updateDtTm`/`updateCnt` — `createDtTm`
- * alone is DAMN-3's history UI's only timestamp for "when was this version saved."
+ * alone is the only timestamp a future version-history UI has to show when a
+ * version was saved.
  */
 export const recipeVersions = pgTable(
   'recipe_versions',

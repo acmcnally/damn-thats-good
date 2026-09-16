@@ -1,5 +1,5 @@
 /**
- * `/api/recipes` + `/api/tags` client (DAMN-2). Every function takes `getAccessToken`
+ * `/api/recipes` + `/api/tags` client. Every function takes `getAccessToken`
  * directly (not read from a hook) so it stays a plain testable function, same as
  * `apiFetch` itself.
  */

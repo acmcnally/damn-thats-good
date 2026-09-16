@@ -91,3 +91,37 @@ describe('<RecipeEntryForm> — create', () => {
     expect(await screen.findByText(/name is required/i)).toBeInTheDocument();
   });
 });
+
+describe('<RecipeEntryForm> — edit', () => {
+  const existing: RecipeDetail = {
+    ...created,
+    id: 'r1',
+    servings: 'Serves 4',
+    provenance: 'A family recipe',
+  };
+
+  it('clearing Servings/Provenance actually clears them, not silently keeps the old value', async () => {
+    let patchBody: unknown;
+    server.use(
+      http.get('/api/recipes/r1', () => HttpResponse.json(existing)),
+      http.patch('/api/recipes/r1', async ({ request }) => {
+        patchBody = await request.json();
+        return HttpResponse.json({ ...existing, servings: null, provenance: null, updateCnt: 2 });
+      }),
+      http.put('/api/recipes/r1/content', () =>
+        HttpResponse.json({ ...existing, servings: null, provenance: null, updateCnt: 2 }),
+      ),
+    );
+    const { router } = renderRoute({ initialEntries: ['/recipes/r1/edit'] });
+
+    const servingsInput = await screen.findByLabelText('Servings');
+    expect(servingsInput).toHaveValue('Serves 4');
+    fireEvent.change(servingsInput, { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Provenance'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /save recipe/i }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/recipes/r1'));
+
+    expect(patchBody).toMatchObject({ servings: '', provenance: '' });
+  });
+});

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { recipes, recipeTags, recipeVersions, tags, users } from './index';
 
 describe('@dtg/db schema', () => {
-  it('defines users with the expected (renamed, DAMN-2) columns', () => {
+  it('defines users with the expected (renamed) columns', () => {
     const { name, columns } = getTableConfig(users);
     expect(name).toBe('users');
     expect(columns.map((c) => c.name).sort()).toEqual([

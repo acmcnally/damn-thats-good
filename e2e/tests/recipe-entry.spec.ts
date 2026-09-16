@@ -3,11 +3,12 @@ import { expect, test } from '@playwright/test';
 import { loginAsTestUser } from '../support/auth';
 
 /**
- * DAMN-2 happy path (technical-design.md's test plan): create a recipe through the
- * real entry UI — name, servings, provenance, tags, ingredient/step tokenization
- * including a manual boundary correction — save, find it in the list, open the
- * detail view, edit content, save again, and confirm (via API assertion, since the
- * version-history UI is DAMN-3) that a second version was created.
+ * Recipe-entry happy path (technical-design.md's test plan): create a recipe
+ * through the real entry UI — name, servings, provenance, tags, ingredient/step
+ * tokenization including a manual boundary correction — save, find it in the
+ * list, open the detail view, edit content, save again, and confirm (via API
+ * assertion, since there's no version-history UI yet) that a second version
+ * was created.
  */
 test('create, list, view, and edit a recipe through the real entry UI', async ({ page }) => {
   // Unique per run — this stack's Postgres persists across local `pnpm e2e`
@@ -20,7 +21,7 @@ test('create, list, view, and edit a recipe through the real entry UI', async ({
 
   await page.getByLabel('Recipe name').fill(recipeName);
   await page.getByLabel('Servings').fill('Serves 4');
-  await page.getByLabel('Provenance').fill('Written for the DAMN-2 workflow test.');
+  await page.getByLabel('Provenance').fill('Written for the recipe-entry workflow test.');
 
   const ingredients = page.getByLabel('Ingredients');
   await ingredients.click();
@@ -53,6 +54,15 @@ test('create, list, view, and edit a recipe through the real entry UI', async ({
 
   const recipeId = page.url().split('/').pop()!;
 
+  // The manual boundary correction actually persisted — not just a live highlight.
+  // "olive" has nowhere else to snap to right of the auto-detected split, and the
+  // schema's non-empty-item guarantee caps the boundary one word short of
+  // consuming the whole line, so this is deterministic regardless of exact drag
+  // distance: quantity picks up "olive", "oil" stays the item.
+  const created = await page.request.get(`/api/recipes/${recipeId}`);
+  const createdIngredients = (await created.json()).content.ingredients;
+  expect(createdIngredients[0]).toMatchObject({ quantity: '2 tbsp olive', item: 'oil' });
+
   // Appears in the list.
   await page.getByRole('link', { name: 'Recipes' }).click();
   await expect(page.getByRole('link', { name: recipeName })).toBeVisible();
@@ -72,8 +82,8 @@ test('create, list, view, and edit a recipe through the real entry UI', async ({
   await expect(page).toHaveURL(new RegExp(`/recipes/${recipeId}$`));
   await expect(page.getByText('Simmer for 20 minutes.')).toBeVisible();
 
-  // Second save actually minted a new version (API assertion — the version-history
-  // UI itself is DAMN-3's).
+  // Second save actually minted a new version (API assertion — there's no
+  // version-history UI to check this against yet).
   // `page.request`, not the standalone `request` fixture — it shares the page's
   // browser context, so the e2e bypass cookie `loginAsTestUser` set rides along.
   const detail = await page.request.get(`/api/recipes/${recipeId}`);

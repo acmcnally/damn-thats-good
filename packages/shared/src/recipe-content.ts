@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { autoDetectBoundary, getWords } from './ingredient-parser';
+import { autoDetectBoundary, getWords, splitAtBoundary } from './ingredient-parser';
 
 export const CONTENT_SCHEMA_VERSION = 1 as const;
 
@@ -15,9 +15,9 @@ const headingLine = z.object({
 /**
  * `quantity` and `item` are the two substrings either side of the tokenizer's detected
  * (or user-dragged) boundary. Both plain strings in V1 — "2 cups", "1 1/2", "a pinch" for
- * quantity; numeric/unit decomposition for scaling (DAMN-7/8) is an additive V2 field,
- * not built here (ADR-0006 permits additive evolution; only per-line ids are load-bearing
- * enough to need to be right on the first pass).
+ * quantity; numeric/unit decomposition for scaling is an additive V2 field, not built
+ * here (ADR-0006 permits additive evolution; only per-line ids are load-bearing enough
+ * to need to be right on the first pass).
  */
 const ingredientLine = z.object({
   id: lineId,
@@ -92,19 +92,9 @@ export function parseNewIngredientOrHeadingLine(
   if (isHeadingText(trimmed)) {
     return { kind: 'heading', text: trimmed.slice(0, -1).trim() };
   }
-  const words = getWords(raw);
-  const boundary = autoDetectBoundary(words);
-  if (boundary === 0 || words.length === 0) {
-    return { kind: 'ingredient', raw, quantity: '', item: trimmed, parseStatus: 'auto' };
-  }
-  const amtEnd = words[boundary - 1]!.end;
-  return {
-    kind: 'ingredient',
-    raw,
-    quantity: raw.slice(0, amtEnd).trim(),
-    item: raw.slice(amtEnd).trim(),
-    parseStatus: 'auto',
-  };
+  const boundary = autoDetectBoundary(getWords(raw));
+  const { quantity, item } = splitAtBoundary(raw, boundary);
+  return { kind: 'ingredient', raw, quantity, item, parseStatus: 'auto' };
 }
 
 /** Fresh auto-parse for a step/heading line with no previous match. */
@@ -227,8 +217,9 @@ function diffLines<T extends { id: string; kind: string }>(a: T[], b: T[]): Line
 }
 
 /** Structural, field-level diff keyed by line id, per ADR-0006/0007 — not a text diff.
- * Reordering is intentionally not a distinct diff type in DAMN-2's scope; order-aware
- * move detection and the diff *rendering* are DAMN-3's job. */
+ * Reordering is intentionally not a distinct diff type here; order-aware move
+ * detection and the diff *rendering* are a separate feature's job.
+ * TODO: DAMN-3 — version-history/diff/revert UI builds on this. */
 export function diffContent(a: RecipeContent, b: RecipeContent): ContentDiff {
   return {
     ingredients: diffLines(a.ingredients, b.ingredients),

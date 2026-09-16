@@ -1,10 +1,11 @@
 /**
  * Pure line-rendering helpers shared by IngredientsField/StepsField's live overlay —
  * split out from the components so the heading/list-marker detection logic (ported
- * from the DAMN-2 mockup) is independently readable and doesn't get lost in JSX.
+ * from the chosen recipe-entry mockup) is independently readable and doesn't get
+ * lost in JSX.
  */
 
-import { autoDetectBoundary, getWords } from '@dtg/shared';
+import { autoDetectBoundary, getWords, maxIngredientBoundary } from '@dtg/shared';
 
 export function isHeadingText(trimmed: string): boolean {
   return trimmed.length > 1 && trimmed.endsWith(':');
@@ -25,7 +26,10 @@ export function renderIngredientLine(
   if (isHeadingText(trimmed)) return { isHeading: true, amountEnd: null };
   if (!trimmed) return { isHeading: false, amountEnd: null };
   const words = getWords(text);
-  const boundary = override != null ? Math.min(override, words.length) : autoDetectBoundary(words);
+  const boundary =
+    override != null
+      ? Math.min(override, maxIngredientBoundary(words.length))
+      : autoDetectBoundary(words);
   if (boundary === 0 || words.length === 0) return { isHeading: false, amountEnd: null };
   return { isHeading: false, amountEnd: words[boundary - 1]!.end };
 }

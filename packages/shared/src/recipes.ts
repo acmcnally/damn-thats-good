@@ -60,15 +60,9 @@ export interface TagSummary {
   name: string;
 }
 
-/** `PUT /recipes/:id/content` 412 body — the client preserves its draft and prompts to
- * reconcile against this (ADR-0007), rather than losing the in-progress edit. */
-export interface ContentConflictResponse {
-  currentVersionId: string;
-  currentVersionNumber: number;
-  content: RecipeContent;
-}
-
-/** `PATCH /recipes/:id` 412 body — same reconcile-prompt shape, for the metadata guard. */
-export interface MetadataConflictResponse {
+/** 412 body for both `PATCH /recipes/:id` and `PUT /recipes/:id/content` — the
+ * client preserves its draft and prompts to reconcile against this (ADR-0007),
+ * rather than losing the in-progress edit. Both guards throw the same shape. */
+export interface ConflictResponse {
   current: RecipeDetail;
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { autoDetectBoundary, getWords } from './ingredient-parser';
+import {
+  autoDetectBoundary,
+  getWords,
+  maxIngredientBoundary,
+  splitAtBoundary,
+} from './ingredient-parser';
 
 function boundaryFor(line: string): number {
   return autoDetectBoundary(getWords(line));
@@ -52,5 +57,44 @@ describe('autoDetectBoundary', () => {
     const words = getWords('  2 tbsp olive oil  ');
     expect(autoDetectBoundary(words)).toBe(2);
     expect(words[1]!.end).toBe(words[1]!.start + 'tbsp'.length);
+  });
+
+  it('never consumes the whole line, even when quantity+unit is everything present', () => {
+    // "2 cups" alone: both words match quantity/unit, but consuming both would
+    // leave nothing for `item` (schema requires it non-empty).
+    expect(boundaryFor('2 cups')).toBe(1);
+    expect(boundaryFor('2')).toBe(0); // a single bare quantity word has nowhere to stop but 0
+  });
+});
+
+describe('maxIngredientBoundary', () => {
+  it('leaves at least one word for item', () => {
+    expect(maxIngredientBoundary(3)).toBe(2);
+    expect(maxIngredientBoundary(1)).toBe(0);
+    expect(maxIngredientBoundary(0)).toBe(0);
+  });
+});
+
+describe('splitAtBoundary', () => {
+  it('splits at the given word boundary', () => {
+    expect(splitAtBoundary('2 tbsp olive oil', 2)).toEqual({
+      quantity: '2 tbsp',
+      item: 'olive oil',
+    });
+  });
+
+  it('falls back to no quantity when boundary is 0', () => {
+    expect(splitAtBoundary('a pinch of salt', 0)).toEqual({
+      quantity: '',
+      item: 'a pinch of salt',
+    });
+  });
+
+  it('caps a boundary that would consume the whole line', () => {
+    expect(splitAtBoundary('2 cups', 2)).toEqual({ quantity: '2', item: 'cups' });
+  });
+
+  it('handles an empty line', () => {
+    expect(splitAtBoundary('', 0)).toEqual({ quantity: '', item: '' });
   });
 });

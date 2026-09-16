@@ -13,9 +13,9 @@ interface RequestWithBook extends Request {
 }
 
 /**
- * Registered per-controller, running after the global `JwtAuthGuard` (DAMN-2). No
- * route ever takes a `bookId` param — V1 has exactly one book per user (DAMN-4) — so
- * this resolves the caller's book server-side via `BooksService.getOrCreateForOwner`
+ * Registered per-controller, running after the global `JwtAuthGuard`. No route
+ * ever takes a `bookId` param — V1 has exactly one book per user — so this
+ * resolves the caller's book server-side via `BooksService.getOrCreateForOwner`
  * and attaches it to the request; `@CurrentBook()` reads it back, the same shape as
  * `@CurrentUser()`/`JwtAuthGuard`.
  */

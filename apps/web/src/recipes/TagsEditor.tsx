@@ -1,6 +1,8 @@
 /**
- * Tokenized tag chips + inline search-or-create control (DAMN-2 mockup) — no
- * dropdowns/modals. Suggestions come from `GET /api/tags`, book-scoped.
+ * Tokenized tag chips + inline search-or-create control — no dropdowns/modals.
+ * Suggestions come from `GET /api/tags`, book-scoped; `GET /tags` itself has no
+ * server-side search (its own scope stays "return the full book-scoped list"),
+ * so narrowing by the typed query happens here, client-side.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -45,9 +47,11 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
     setQuery('');
   }
 
-  const filteredSuggestions = suggestions.filter((s) => !tags.includes(s));
-  const exactMatch =
-    query.trim() && filteredSuggestions.some((s) => s === query.trim().toLowerCase());
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredSuggestions = suggestions.filter(
+    (s) => !tags.includes(s) && s.includes(normalizedQuery),
+  );
+  const exactMatch = normalizedQuery && filteredSuggestions.some((s) => s === normalizedQuery);
 
   return (
     <div className={styles.tagList}>

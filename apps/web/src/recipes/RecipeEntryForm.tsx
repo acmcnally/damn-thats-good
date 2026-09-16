@@ -1,5 +1,5 @@
 /**
- * Manual recipe entry/edit form (DAMN-2) — the chosen mockup direction
+ * Manual recipe entry/edit form — the chosen recipe-entry mockup direction
  * (entry-option-2-live-inline.html): live inline tokenization, tokenized tag chips,
  * free-text servings/provenance. Shared between the create and edit routes; the
  * two differ only in what happens on submit (`POST` vs `PATCH` + `PUT .../content`).
@@ -12,6 +12,7 @@ import {
   parseNewStepOrHeadingLine,
   type RecipeDetail,
   reconcileLines,
+  splitAtBoundary,
   type StepOrHeadingLine,
   stepOrHeadingLineToRawText,
 } from '@dtg/shared';
@@ -49,10 +50,22 @@ export function RecipeEntryForm({
     ingredientLines.map(ingredientOrHeadingLineToRawText).join('\n'),
   );
   const [stepsText, setStepsText] = useState(stepLines.map(stepOrHeadingLineToRawText).join('\n'));
+  // Per-line drag corrections, keyed by the line's own raw text (see
+  // IngredientsField's module comment for why not index) — owned here, not
+  // inside IngredientsField, because a confirmed boundary needs to be baked
+  // into the saved quantity/item at blur/submit time, not just live-highlighted.
+  const [ingredientOverrides, setIngredientOverrides] = useState<Record<string, number>>({});
+
+  // Tracks the server's current optimistic-concurrency counter/version across
+  // saves — refreshed after each successful write so a retry after a partial
+  // failure (metadata patched, content save then failed) doesn't send a stale
+  // value and 412 against itself.
+  const [expectedUpdtCnt, setExpectedUpdtCnt] = useState(initial?.updateCnt ?? 0);
+  const [baseVersionId, setBaseVersionId] = useState(initial?.currentVersionId ?? '');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
+  const [conflict, setConflict] = useState<'metadata' | 'content' | null>(null);
 
   function reconcileIngredients(text: string): IngredientOrHeadingLine[] {
     const reconciled = reconcileLines(
@@ -61,8 +74,23 @@ export function RecipeEntryForm({
       ingredientOrHeadingLineToRawText,
       parseNewIngredientOrHeadingLine,
     );
-    setIngredientLines(reconciled);
-    return reconciled;
+
+    // Bake a still-live override into the line it belongs to. Keyed by raw
+    // text, so this is correct whether the line was matched to a previous one
+    // or freshly parsed — an override for text that's no longer anywhere in
+    // the content (edited away, or the line deleted) simply never matches
+    // anything, which is exactly "an edit to raw discards a prior manual
+    // confirmation" (decision #2) with no separate invalidation step needed.
+    const withOverrides = reconciled.map((line) => {
+      if (line.kind !== 'ingredient') return line;
+      const override = ingredientOverrides[line.raw];
+      if (override == null) return line;
+      const { quantity, item } = splitAtBoundary(line.raw, override);
+      return { ...line, quantity, item, parseStatus: 'confirmed' as const };
+    });
+
+    setIngredientLines(withOverrides);
+    return withOverrides;
   }
 
   function reconcileSteps(text: string): StepOrHeadingLine[] {
@@ -84,43 +112,60 @@ export function RecipeEntryForm({
     }
     setSaving(true);
     setError(null);
-    setConflict(false);
+    setConflict(null);
 
     // Force a final reconcile in case the field never lost focus before Save.
     const finalIngredients = reconcileIngredients(ingredientsText);
     const finalSteps = reconcileSteps(stepsText);
     const content = { ingredients: finalIngredients, steps: finalSteps };
 
+    // Always the trimmed value, never omitted for a blank field — omitting it
+    // (via `|| undefined`) told the server "leave this field alone," so clearing
+    // Servings/Provenance to empty and saving silently kept the old value.
+    const metadataFields = {
+      name: name.trim(),
+      servings: servings.trim(),
+      provenance: provenance.trim(),
+      tags,
+    };
+
     try {
       if (!initial) {
-        const created = await createRecipe(getAccessToken, {
-          name: name.trim(),
-          servings: servings.trim() || undefined,
-          provenance: provenance.trim() || undefined,
-          tags,
-          content,
-        });
+        const created = await createRecipe(getAccessToken, { ...metadataFields, content });
         onSaved(created);
         return;
       }
 
-      await updateRecipeMetadata(getAccessToken, initial.id, {
-        expectedUpdtCnt: initial.updateCnt,
-        name: name.trim(),
-        servings: servings.trim() || undefined,
-        provenance: provenance.trim() || undefined,
-        tags,
-      });
+      try {
+        const patched = await updateRecipeMetadata(getAccessToken, initial.id, {
+          expectedUpdtCnt,
+          ...metadataFields,
+        });
+        // Adopt the server's new counter immediately — if the content save
+        // below fails, a retry must use this value, not the one this render
+        // started with, or it 412s against a save that already succeeded.
+        setExpectedUpdtCnt(patched.updateCnt);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 412) {
+          setConflict('metadata');
+          return;
+        }
+        throw err;
+      }
+
+      // Reaching here means the metadata patch above committed — a 412 from
+      // this point on is reported as a content conflict, not a metadata one.
       const withContent = await saveRecipeContent(
         getAccessToken,
         initial.id,
-        initial.currentVersionId,
+        baseVersionId,
         content,
       );
+      setBaseVersionId(withContent.currentVersionId);
       onSaved(withContent);
     } catch (err) {
       if (err instanceof ApiError && err.status === 412) {
-        setConflict(true);
+        setConflict('content');
       } else {
         setError('Something went wrong saving this recipe. Please try again.');
       }
@@ -133,8 +178,9 @@ export function RecipeEntryForm({
     <form className={styles.form} onSubmit={handleSubmit}>
       {conflict && (
         <div className={styles.conflictBanner} role="alert">
-          This recipe changed elsewhere while you were editing. Your edits below are still here, but
-          saving again would conflict.
+          {conflict === 'content'
+            ? "This recipe's ingredients or steps changed elsewhere while you were saving. Your name/servings/provenance/tag changes were already saved; your ingredient and step edits below were not."
+            : 'This recipe changed elsewhere while you were editing. Nothing from this save went through yet — your edits below are still here.'}
           <button type="button" onClick={() => window.location.reload()}>
             Discard my changes and reload the latest version
           </button>
@@ -205,6 +251,8 @@ export function RecipeEntryForm({
             value={ingredientsText}
             onChange={setIngredientsText}
             onFieldBlur={(text) => reconcileIngredients(text)}
+            overrides={ingredientOverrides}
+            onOverridesChange={setIngredientOverrides}
           />
         </div>
       </section>

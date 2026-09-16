@@ -1,5 +1,5 @@
 /** DOM measurement for placing/dragging a boundary handle against the live overlay's
- * rendered text — ported from the DAMN-2 mockup's `domPositionForOffset`/`xAtOffset`.
+ * rendered text — ported from the recipe-entry mockup's `domPositionForOffset`/`xAtOffset`.
  * Real-browser-only (jsdom's layout geometry is all zeros); callers treat a `null`
  * result as "can't position this right now," never as an error. */
 
