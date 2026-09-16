@@ -119,6 +119,11 @@ export function parseNewStepOrHeadingLine(
  * index, which is exactly what LCS backtracking does when it pairs occurrences in
  * left-to-right order — low-stakes either way, since a wrong resolution there attributes
  * a diff entry to a line that reads identically anyway, not data corruption.
+ *
+ * A blank (or whitespace-only) line is dropped before any of this runs — it's pure
+ * editing whitespace between sections (the mockup's own seed data has one before a new
+ * heading), never a line of content. Left in, it would become an ingredient/step whose
+ * `item`/`text` is empty, which the schema rejects outright (both require non-empty).
  */
 export function reconcileLines<T extends { id: string }>(
   previous: T[],
@@ -126,15 +131,16 @@ export function reconcileLines<T extends { id: string }>(
   canonicalText: (line: T) => string,
   parseNew: (raw: string) => Omit<T, 'id'>,
 ): T[] {
+  const meaningfulLines = currentRawLines.filter((line) => line.trim().length > 0);
   const prevTexts = previous.map(canonicalText);
   const n = prevTexts.length;
-  const m = currentRawLines.length;
+  const m = meaningfulLines.length;
 
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       dp[i]![j] =
-        prevTexts[i] === currentRawLines[j]
+        prevTexts[i] === meaningfulLines[j]
           ? dp[i + 1]![j + 1]! + 1
           : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
     }
@@ -144,7 +150,7 @@ export function reconcileLines<T extends { id: string }>(
   let i = 0;
   let j = 0;
   while (i < n && j < m) {
-    if (prevTexts[i] === currentRawLines[j]) {
+    if (prevTexts[i] === meaningfulLines[j]) {
       matchedByCurrentIndex.set(j, i);
       i++;
       j++;
@@ -155,7 +161,7 @@ export function reconcileLines<T extends { id: string }>(
     }
   }
 
-  return currentRawLines.map((raw, j) => {
+  return meaningfulLines.map((raw, j) => {
     const matchedIndex = matchedByCurrentIndex.get(j);
     if (matchedIndex !== undefined) return previous[matchedIndex]!;
     return { id: crypto.randomUUID(), ...parseNew(raw) } as T;

@@ -82,6 +82,36 @@ describe('<RecipeEntryForm> — create', () => {
     ]);
   });
 
+  it('drops blank lines between ingredients/steps instead of submitting an empty item', async () => {
+    let requestBody: unknown;
+    server.use(
+      http.post('/api/recipes', async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json(created, { status: 201 });
+      }),
+    );
+    renderRoute({ initialEntries: ['/recipes/new'] });
+
+    fireEvent.change(await screen.findByLabelText('Recipe name'), {
+      target: { value: 'Weeknight Chili' },
+    });
+    fireEvent.change(screen.getByLabelText('Ingredients'), {
+      target: { value: 'For the chili:\n2 tbsp olive oil\n\nFor serving:\nLime wedges' },
+    });
+    fireEvent.change(screen.getByLabelText('Steps'), {
+      target: { value: 'Heat the oil.\n\nServe.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save recipe/i }));
+
+    await vi.waitFor(() => expect(requestBody).toBeDefined());
+
+    const body = requestBody as {
+      content: { ingredients: { kind: string }[]; steps: { kind: string }[] };
+    };
+    expect(body.content.ingredients).toHaveLength(4); // 2 headings + 2 ingredient lines, no blank
+    expect(body.content.steps).toHaveLength(2);
+  });
+
   it('requires a name before submitting', async () => {
     renderRoute({ initialEntries: ['/recipes/new'] });
     await screen.findByLabelText('Recipe name');

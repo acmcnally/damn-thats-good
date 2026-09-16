@@ -202,6 +202,33 @@ describe('reconcileLines', () => {
     expect(result[0]!.id).not.toBe(second.id);
   });
 
+  it('drops blank lines instead of producing an empty-item/text line', () => {
+    // A blank line is pure editing whitespace (e.g. between a section's last
+    // item and the next heading) — never content. Left in, this would produce
+    // an ingredient/step whose item/text is empty, which the schema rejects.
+    const result = reconcileLines<IngredientOrHeadingLine>(
+      [],
+      ['2 cups flour', '', '   ', '1 onion'],
+      ingredientOrHeadingLineToRawText,
+      parseNewIngredientOrHeadingLine,
+    );
+    expect(result).toHaveLength(2);
+    expect(result.map((l) => (l.kind === 'ingredient' ? l.item : null))).toEqual([
+      'flour',
+      'onion',
+    ]);
+  });
+
+  it('drops blank lines for steps too', () => {
+    const result = reconcileLines<StepOrHeadingLine>(
+      [],
+      ['Heat the oil.', '', 'Add the onion.'],
+      stepOrHeadingLineToRawText,
+      parseNewStepOrHeadingLine,
+    );
+    expect(result).toHaveLength(2);
+  });
+
   it('round-trips a heading line through its colon-stripped storage form', () => {
     const heading = headingLine({ text: 'For the sauce' });
     expect(ingredientOrHeadingLineToRawText(heading)).toBe('For the sauce:');
