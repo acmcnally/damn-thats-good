@@ -1,10 +1,12 @@
 /**
  * @dtg/shared — types and pure helpers shared by the web and api apps.
  *
- * Consumed as TypeScript source, not a build artifact (ADR-0005). The recipe content
- * schema, DTOs, and `diffContent` land with DAMN-2 / DAMN-3; for now this holds the
- * walking-skeleton + auth (DAMN-1) response shapes.
+ * Consumed as TypeScript source, not a build artifact (ADR-0005).
  */
+
+export * from './ingredient-parser';
+export * from './recipe-content';
+export * from './recipes';
 
 /** `GET /api/health` response (ADR-0010). 200 when `status: 'ok'`, 503 otherwise. */
 export interface HealthResponse {
