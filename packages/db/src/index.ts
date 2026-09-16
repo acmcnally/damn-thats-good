@@ -8,4 +8,12 @@
 export type { Database, DbHandle, Schema } from './client';
 export { createDb } from './client';
 export * as schema from './schema';
-export { books, users } from './schema';
+export {
+  books,
+  recipes,
+  recipeTags,
+  recipeVersions,
+  recipeVisibility,
+  tags,
+  users,
+} from './schema';
