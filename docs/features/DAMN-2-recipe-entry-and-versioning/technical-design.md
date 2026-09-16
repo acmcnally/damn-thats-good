@@ -12,6 +12,7 @@ Scope locked (phase 1). UX signed off (phase 3) — see `mockups/`. This documen
 - **Sectioning: in for V1.** Ingredient/step sectioning ("For the sauce:") ships via interleaved heading lines in the same ordered array (`{ id, kind: 'heading', text }`), per ADR-0006's low-cost approach. Chosen because retrofitting into a flat list is the expensive direction and the interleaved-heading mechanism itself is cheap.
 - **Concurrency guards (ADR-0007) are a permanent floor**, not conditional on multi-owner books — the same recipe open in two tabs/devices can race even with a single owner. `DAMN-19` (multi-owner books) is parked, unscheduled; only the *assisted-merge* extension planned on top of the floor is parked with it.
 - **Recipe list + detail view** is in scope (added during UX design, phase 3) — nothing else in the tracker owns it. Minimal: a card grid list and a read view. No search/filter UI (see Non-goals).
+- **Ingredient autocomplete vocabulary, added post-signoff.** `ingredient_terms` (decision #12) — a lightweight per-user list of previously-typed ingredient text, feeding a search-or-create-style autocomplete on the ingredient `item` field, mirroring the tags `+` control. Added after phase 5 review closed, during owner review of this doc; a small, self-contained addition (one new table, no change to any existing table/route) that doesn't reopen sectioning, versioning, or concurrency decisions — not re-run through adversarial review given its size and isolation. See decision #12.
 
 ## Content schema library — Zod (decided)
 
@@ -48,7 +49,7 @@ See `mockups/index.html` for the comparison grid and research summary, and `mock
 - **Provenance** is a free-text field (not structured) — "Grandma's recipe," a book + page citation, or a URL are all valid, and the app doesn't try to parse or validate the shape.
 - **Servings** is a free-text field, not a numeric stepper/spinner — consistent with the no-dropdowns constraint.
 - **Steps** support literal Markdown list syntax (`1. `, `- `, `* `) with editor auto-continuation as a typing convenience; the list markers are ordinary characters in the stored text, not a separate structured list model (see "List-marker renumbering," below).
-- Known, accepted mockup-only rough edge: the title `<input>` doesn't reflow at all viewport widths (see "Non-goals" — this is implementation-phase polish, not a design gap).
+- Known, accepted mockup-only rough edge: the name `<input>` doesn't reflow at all viewport widths (see "Non-goals" — this is implementation-phase polish, not a design gap).
 
 ## Data model
 
@@ -168,7 +169,7 @@ export const recipeVisibility = pgEnum('recipe_visibility', ['private', 'unliste
 export const recipes = pgTable('recipes', {
   id: uuid('id').primaryKey().defaultRandom(),
   bookId: uuid('book_id').notNull().references(() => books.id),
-  title: text('title').notNull(),
+  name: text('name').notNull(),
   servings: text('servings'), // free text — "serves 4-6", "makes a dozen"; see decision #5
   provenance: text('provenance'),
   visibility: recipeVisibility('visibility').notNull().default('private'),
@@ -239,6 +240,29 @@ export const recipeTags = pgTable(
 );
 ```
 
+### `ingredient_terms` table (decision #12)
+
+A per-user, unvetted list of previously-typed ingredient text — not the canonical ingredient dictionary a future scaling/unit-conversion/shopping-list feature would need (that dictionary doesn't exist yet; see decision #12 below for the relationship between the two). Purely a self-consistency nudge for entry: the item-field autocomplete searches this list so a user typing "flour" for the third time gets it suggested back rather than re-typing a slightly different string each time.
+
+```ts
+export const ingredientTerms = pgTable(
+  'ingredient_terms',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    term: text('term').notNull(), // normalized: trimmed + lowercased, same rationale as tags (decision #6)
+    createDtTm: timestamp('create_dt_tm', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('ingredient_terms_user_term_idx').on(t.userId, t.term)],
+);
+```
+
+No join table — unlike tags, nothing needs to query "which recipes use this term," only "what terms has this user typed before," so there's nothing to link back to a specific recipe or line. Matching against it (for the autocomplete) is exact normalized-string equality only, no stemming or fuzzy logic — deliberately dumb, same posture as tags' plain-equality lookup.
+
+**Write path:** independent of the content-save CAS transaction described below — whenever `PUT /recipes/:id/content` is processed (whether it results in a new version or a no-op via `contentEquals`), the service also upserts each distinct normalized `item` string from the saved `ingredients` array (ingredient lines only, headings excluded) into `ingredient_terms` for the caller's user id — same get-or-create-by-unique-key shape as tags' step 2, `ON CONFLICT DO NOTHING` + re-select. This runs as a separate statement outside the row-locked transaction: it's not part of the concurrency-critical path, and a failure to record a term is not something a 412 should ever represent.
+
 ## Migration plan
 
 One Drizzle migration (`drizzle-kit generate`), in this order (tables are created in dependency order; `recipes.current_version_id` is added without its FK constraint enforced until `recipe_versions` exists):
@@ -248,7 +272,8 @@ One Drizzle migration (`drizzle-kit generate`), in this order (tables are create
 3. `CREATE TABLE recipe_versions` (FK to `recipes.id`)
 4. `ALTER TABLE recipes ADD CONSTRAINT ... FOREIGN KEY (current_version_id) REFERENCES recipe_versions(id)`
 5. `CREATE TABLE tags`, `CREATE TABLE recipe_tags`
-6. `ALTER TABLE users RENAME COLUMN created_at TO create_dt_tm`, `ALTER TABLE users RENAME COLUMN updated_at TO update_dt_tm`, and the same pair for `books` (naming convention, see decision #7). Corresponding edits to `packages/db/src/schema.ts`'s existing `users`/`books` definitions (`createdAt`/`updatedAt` → `createDtTm`/`updateDtTm`). Grepped confirmed nothing outside `packages/db` reads those two columns by name today, so no other code changes ride along with this rename.
+6. `CREATE TABLE ingredient_terms` (FK to `users.id`, unique index on `(user_id, term)`) — no ordering dependency on steps 2–5, grouped here because it's the last of this issue's new tables.
+7. `ALTER TABLE users RENAME COLUMN created_at TO create_dt_tm`, `ALTER TABLE users RENAME COLUMN updated_at TO update_dt_tm`, and the same pair for `books` (naming convention, see decision #7). Corresponding edits to `packages/db/src/schema.ts`'s existing `users`/`books` definitions (`createdAt`/`updatedAt` → `createDtTm`/`updateDtTm`). Grepped confirmed nothing outside `packages/db` reads those two columns by name today, so no other code changes ride along with this rename.
 
 Drizzle's schema file expresses steps 2–4 as ordinary `.references()` calls (Drizzle resolves the two-table circular reference from the TS module graph and emits the FK-add as a separate statement in the generated SQL automatically) — no hand-written SQL needed, same `drizzle-kit generate` → commit → `migrate` flow as the existing `books`/`users` migrations.
 
@@ -265,7 +290,7 @@ Drizzle's schema file expresses steps 2–4 as ordinary `.references()` calls (D
 All in one transaction — never observable outside it with a null `current_version_id`.
 
 **Write path for updating recipe metadata** (`RecipesService.updateMetadata`, phase 5 fix — finding 6), one DB transaction:
-1. `UPDATE recipes SET title = ..., servings = ..., provenance = ..., visibility = ..., update_cnt = update_cnt + 1, update_dt_tm = now() WHERE id = $id AND update_cnt = $expectedUpdtCnt RETURNING *`. Zero rows → 412, return the current row (fetched separately) for the client's reconcile prompt.
+1. `UPDATE recipes SET name = ..., servings = ..., provenance = ..., visibility = ..., update_cnt = update_cnt + 1, update_dt_tm = now() WHERE id = $id AND update_cnt = $expectedUpdtCnt RETURNING *`. Zero rows → 412, return the current row (fetched separately) for the client's reconcile prompt.
 2. If `tags` was included in the request: diff the (normalized) submitted names against the recipe's currently-linked tag names. Upsert any new names (same get-or-create shape as create's step 2), `INSERT` new `recipe_tags` link rows, `DELETE` link rows for names no longer present.
 
 **Write path for saving content** (`RecipesService.saveContent`, phase 5 fix — finding 2), one DB transaction:
@@ -281,13 +306,14 @@ REST, resource-oriented, all routes behind the existing global `JwtAuthGuard`. N
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/recipes` | List, scoped to the caller's book. Lightweight shape (no `content`) — `id, title, servings, tags, visibility, updateDtTm`. Sorted by `updateDtTm desc`. No query params in V1 (see Non-goals). |
+| `GET` | `/recipes` | List, scoped to the caller's book. Lightweight shape (no `content`) — `id, name, servings, tags, visibility, updateDtTm`. Sorted by `updateDtTm desc`. No query params in V1 (see Non-goals). |
 | `GET` | `/recipes/:id` | Detail — full metadata + current version's `content` + `currentVersionId`/`versionNumber`. 404 if the recipe isn't in the caller's book. |
-| `POST` | `/recipes` | Create. Body: `{ title, servings?, provenance?, tags: string[], content: { ingredients, steps } }` (server stamps `contentSchemaVersion`). Runs the transaction above. Returns the detail shape, 201. |
-| `PATCH` | `/recipes/:id` | Metadata only (title, servings, provenance, tags, visibility) — never touches `content`/version. Body carries `expectedUpdtCnt` (integer, see decision #7); mismatch → 412 with the current row. |
+| `POST` | `/recipes` | Create. Body: `{ name, servings?, provenance?, tags: string[], content: { ingredients, steps } }` (server stamps `contentSchemaVersion`). Runs the transaction above. Returns the detail shape, 201. |
+| `PATCH` | `/recipes/:id` | Metadata only (name, servings, provenance, tags, visibility) — never touches `content`/version. Body carries `expectedUpdtCnt` (integer, see decision #7); mismatch → 412 with the current row. |
 | `PUT` | `/recipes/:id/content` | Content save. Body: `{ baseVersionId, content }`. Atomic compare-and-swap under a row lock (see "Write path for saving content") — stale `baseVersionId` → 412 with the current version; else `contentEquals` decides no-op (200, existing version) vs. a new `recipe_versions` row (200, new version). |
 | `DELETE` | `/recipes/:id` | Hard delete (decision #8). `ON DELETE CASCADE` on `recipe_versions`/`recipe_tags` handles child-row cleanup at the DB level — a single-statement delete, no application-level multi-step transaction needed. |
 | `GET` | `/tags` | Book-scoped tag list, for the `+` add-tag control's search-or-create. `{ id, name }[]`, sorted by name. |
+| `GET` | `/ingredient-terms?q=` | User-scoped (not book-scoped — see decision #12), prefix-matched against the caller's `ingredient_terms`, for the ingredient `item` field's autocomplete. `{ id, term }[]`, capped/sorted for typeahead use. Resolves the caller via `@CurrentUser()` directly — no `BookContextGuard` needed. |
 
 `RecipesModule` owns `recipes`, `recipe_versions`, and `tags`/`recipe_tags` together (decision below) — imports `BooksModule`.
 
@@ -307,7 +333,7 @@ const tagsSchema = z
   .transform((tags) => [...new Set(tags.map((t) => t.toLowerCase()))]);
 
 export const createRecipeRequestSchema = z.object({
-  title: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   servings: z.string().trim().max(120).optional(),
   provenance: z.string().trim().max(2000).optional(),
   tags: tagsSchema,
@@ -317,7 +343,7 @@ export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
 
 export const updateRecipeMetadataRequestSchema = z.object({
   expectedUpdtCnt: z.number().int().positive(), // phase 5 fix — finding 9, was expectedUpdatedAt
-  title: z.string().trim().min(1).max(200).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
   servings: z.string().trim().max(120).optional(),
   provenance: z.string().trim().max(2000).optional(),
   tags: tagsSchema.optional(),
@@ -331,7 +357,7 @@ export const saveContentRequestSchema = z.object({
 
 export interface RecipeSummary {
   id: string;
-  title: string;
+  name: string;
   servings: string | null;
   tags: string[];
   visibility: z.infer<typeof visibilitySchema>;
@@ -378,6 +404,12 @@ Field names carry the `create_dt_tm`/`update_dt_tm`/`update_cnt` convention thro
 
 11. **`content_schema_version` storage:** embedded in the JSONB document, no DB column. **Recommendation, applied.** See "`content` (JSONB...)" above.
 
+12. **Ingredient autocomplete vocabulary — `ingredient_terms`, user-scoped, added post-signoff.** Owner review of this doc raised scaling/unit-conversion/shopping-list concerns for later (V2/`DAMN-7`/`DAMN-8`, and an as-yet-unticketed shopping-list feature); those are out of scope here and the schema's additive-evolution posture (ADR-0006) already accommodates them without a rewrite — no change needed on that basis alone. What *is* added here is much smaller: a per-user list of previously-typed ingredient `item` text, surfaced as a search-or-create-style autocomplete on the item field (same UX pattern as the tags `+` control), purely to reduce spelling variance within a user's own data going forward.
+    - **User-scoped, not book-scoped.** Every other book-scoped table in this issue (`tags`) is scoped that way because tag vocabulary is naturally a property of the collection. Ingredient vocabulary is a property of the *person* — if multiple books per user is ever added, nothing about that roadmap item is decided or scheduled today, but there's no reason to force a rebuild of this list per book if it does happen. Scoped via `user_id` for that reason.
+    - **Naming: `ingredient_terms`, not `user_ingredients`.** A future canonical ingredient dictionary (needed for unit conversion and shopping-list quantity-combination, neither built here) would plausibly be called `ingredients` — vetted, curated entries. This table holds raw, unvetted user-typed text with no claim to being a canonical concept; naming it `user_ingredients` would imply parity with that future table it doesn't have. `ingredient_terms` keeps that distinction legible from the name alone. Scope lives in the `user_id` column, not the table name, consistent with how `tags` is scoped (not named `book_tags`).
+    - **Relationship to a future canonical dictionary (not built here, recorded for context):** this table is a plausible foundation for the "local, unvetted" tier of an eventual two-tier ingredient dictionary — a global curated `ingredients` table plus each user's own vocabulary for terms the dictionary doesn't (yet) recognize. Nothing here commits to that shape; it's additive if it happens (a nullable `canonical_ingredient_id` column later, at most) and this table is exactly as useful for today's narrow autocomplete purpose whether or not that future ever arrives.
+    - **Matching stays exact-normalized-string only** (trimmed + lowercased, same as tags) — no stemming, no fuzzy logic, no plural/singular unification. Deliberately dumb, consistent with everything else this issue defers to a real dictionary/matching design later.
+
 ## Non-goals
 
 - **Search/filter UI or query params** — separate V1 deliverable (ADR-0002).
@@ -385,7 +417,8 @@ Field names carry the `create_dt_tm`/`update_dt_tm`/`update_cnt` convention thro
 - **Full numeric quantity/unit decomposition, scaling, unit conversion** — DAMN-7/DAMN-8 (V2).
 - **Assisted-merge UI on a 412** — parked with DAMN-19; V1 shows the reconcile prompt only.
 - **Recipe photos** — DAMN-24 (V3); no `media` FK on `recipes` in this schema.
-- **Title input reflow at arbitrary viewport widths.** Real product decisions were made and proven in the mockup (tokenization, sectioning, tags, provenance, mobile layout shape); this is left-over mockup fit-and-finish, not a locked interaction decision — the real entry form's title control gets sized correctly during implementation (candidates: fluid `clamp()` sizing, or promoting it to the same auto-grow technique already used for ingredients/steps), verified against real title lengths rather than the mockup's single seed recipe.
+- **The canonical ingredient dictionary, unit conversion, and shopping-list quantity matching** — none of that is built here. `ingredient_terms` (decision #12) is a self-consistency nudge only: no `ingredientRef` on content lines, no cross-user/global vocabulary, no unmatched-ingredient indicator or reconcile-to-dictionary UX. All future, unticketed work.
+- **Name input reflow at arbitrary viewport widths.** Real product decisions were made and proven in the mockup (tokenization, sectioning, tags, provenance, mobile layout shape); this is left-over mockup fit-and-finish, not a locked interaction decision — the real entry form's name control gets sized correctly during implementation (candidates: fluid `clamp()` sizing, or promoting it to the same auto-grow technique already used for ingredients/steps), verified against real name lengths rather than the mockup's single seed recipe.
 - **Auto-renumbering Markdown lists in Steps** — see decision #4.
 
 ## Test plan (ADR-0012 tiers)
@@ -400,7 +433,8 @@ Field names carry the `create_dt_tm`/`update_dt_tm`/`update_cnt` convention thro
   - Tag upsert de-duplication: submitting `["Dessert", "dessert"]` in one request results in exactly one `tags` row; a later request submitting `"Dessert"` when `"dessert"` already exists in the book reuses it.
   - **`PATCH` tag mutation (phase 5 fix — finding 6):** a `PATCH` that both adds a new tag name and drops an existing one in the same request ends with the correct final `recipe_tags` link set — no leftover link rows for the dropped tag.
   - **Delete (phase 5 fix — finding 5):** `DELETE /recipes/:id` on a recipe with versions and tags succeeds and removes the `recipe_versions`/`recipe_tags` rows via cascade, not a foreign-key-violation error.
-- **Workflow (`@dtg/e2e`, Playwright):** create a recipe through the real entry UI (title, servings, provenance, tags, ingredient/step tokenization including a manual boundary correction) → save → appears in the list → open detail → edit content → save again and confirm (via API assertion, since the version-history UI is DAMN-3) that a second version was created. Scoped to the DAMN-2 happy path only; version-history/diff/revert workflow coverage is DAMN-3's.
+  - **`ingredient_terms` upsert (decision #12):** saving content with a repeated `item` string across two different recipes for the same user results in exactly one `ingredient_terms` row; a no-op content save (`contentEquals` true) still upserts any not-yet-captured terms. Scoping: a second user's terms never appear in `GET /ingredient-terms`, even for identical text. Race-safety under concurrent saves mirrors the existing tag get-or-create race test.
+- **Workflow (`@dtg/e2e`, Playwright):** create a recipe through the real entry UI (name, servings, provenance, tags, ingredient/step tokenization including a manual boundary correction) → save → appears in the list → open detail → edit content → save again and confirm (via API assertion, since the version-history UI is DAMN-3) that a second version was created. Scoped to the DAMN-2 happy path only; version-history/diff/revert workflow coverage is DAMN-3's.
 
 ## Phase 5 — adversarial design review
 
@@ -410,4 +444,6 @@ Run as a fresh-context subagent against the frozen DAMN-2 requirement text, the 
 - **Discussed with the owner and resolved:** tags don't need case sensitivity — normalize to lowercase at the Zod boundary rather than case-insensitive queries everywhere (decision #6, revised); a pure boundary re-confirmation with no substantive change shouldn't mint a new version — `parseStatus` excluded from `contentEquals`; the metadata concurrency token is an integer counter, not a timestamp (decision #7, revised) — avoids a whole class of timestamp-precision/serialization bug for a check that exists specifically to prevent silent data loss.
 - **Follow-up discussion, post-review:** naming convention for the new counter/timestamp columns — settled as `update_cnt`/`create_dt_tm`/`update_dt_tm` (decision #7's second revision), including a same-change rename of the already-shipped `users`/`books` timestamp columns to match (see migration plan).
 
-No items outstanding. Ready for phase 6 (implementation).
+No items outstanding from phase 5. Ready for phase 6 (implementation).
+
+**Post-signoff addition (owner review of this doc, before phase 6 start):** `ingredient_terms` (decision #12) — a per-user ingredient-text autocomplete vocabulary, prompted by owner questions about V2 scaling/unit-conversion/shopping-list concerns. Those concerns turned out not to require any schema change (ADR-0006's additive-evolution posture already covers them), but the discussion surfaced a small, genuinely useful piece of scope: reducing ingredient-text spelling variance at entry time. One new table, no changes to any table/route already reviewed in phase 5 — added directly rather than re-run through adversarial review.
