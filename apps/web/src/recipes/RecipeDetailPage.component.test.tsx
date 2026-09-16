@@ -1,5 +1,5 @@
 import type { RecipeDetail } from '@dtg/shared';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -74,23 +74,28 @@ describe('<RecipeDetailPage>', () => {
       http.get('/api/recipes/r1', () => HttpResponse.json(detail)),
       http.delete('/api/recipes/r1', () => new HttpResponse(null, { status: 204 })),
     );
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const { router } = renderRoute({ initialEntries: ['/recipes/r1'] });
 
     await screen.findByRole('heading', { name: 'Chili', level: 1 });
     fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /delete/i }));
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/recipes'));
   });
 
   it('does not delete when the confirm dialog is dismissed', async () => {
     server.use(http.get('/api/recipes/r1', () => HttpResponse.json(detail)));
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { router } = renderRoute({ initialEntries: ['/recipes/r1'] });
 
     await screen.findByRole('heading', { name: 'Chili', level: 1 });
     fireEvent.click(screen.getByRole('button', { name: /delete/i }));
 
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/recipes/r1');
   });
 });

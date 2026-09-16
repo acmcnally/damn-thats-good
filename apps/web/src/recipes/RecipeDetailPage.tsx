@@ -2,6 +2,7 @@ import type { RecipeDetail } from '@dtg/shared';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useShellContext } from '../shell/shellContext';
 import { deleteRecipe, getRecipe } from './api';
 import styles from './RecipeDetailPage.module.css';
@@ -15,6 +16,7 @@ export function RecipeDetailPage() {
   const { getAccessToken } = useShellContext();
   const [state, setState] = useState<DetailState>({ status: 'loading' });
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -39,7 +41,7 @@ export function RecipeDetailPage() {
   const { recipe } = state;
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${recipe.name}"? This can't be undone.`)) return;
+    setConfirmingDelete(false);
     setDeleting(true);
     try {
       await deleteRecipe(getAccessToken, recipe.id);
@@ -72,13 +74,23 @@ export function RecipeDetailPage() {
           <button
             type="button"
             className={styles.btnGhost}
-            onClick={handleDelete}
+            onClick={() => setConfirmingDelete(true)}
             disabled={deleting}
           >
             {deleting ? 'Deleting…' : 'Delete'}
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this recipe?"
+        description={`"${recipe.name}" and its version history will be permanently deleted. This can't be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
 
       {recipe.provenance && <p className={styles.provenance}>{recipe.provenance}</p>}
 
