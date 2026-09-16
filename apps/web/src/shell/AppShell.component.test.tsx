@@ -132,7 +132,7 @@ describe('mobile nav (bottom tab bar, <=640px)', () => {
     );
   });
 
-  it('Create FAB opens the same inert popover as desktop, and closes without navigating', async () => {
+  it('Create FAB opens the same popover as desktop, and its Recipe item navigates to the new-recipe form', async () => {
     stubMatchMedia(MOBILE_MEDIA_QUERY, true);
     const { router } = renderRoute({ initialEntries: ['/'] });
 
@@ -145,6 +145,6 @@ describe('mobile nav (bottom tab bar, <=640px)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^recipe$/i }));
     expect(fab).toHaveAttribute('aria-expanded', 'false');
-    expect(router.state.location.pathname).toBe('/');
+    expect(router.state.location.pathname).toBe('/recipes/new');
   });
 });

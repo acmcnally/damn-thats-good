@@ -1,0 +1,96 @@
+import type { RecipeDetail } from '@dtg/shared';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { renderRoute } from '../test/renderRoute';
+
+vi.mock('@workos-inc/authkit-react', () => ({
+  useAuth: () => ({
+    isLoading: false,
+    user: { email: 'andrew@example.com' },
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    getAccessToken: vi.fn().mockResolvedValue('t'),
+  }),
+}));
+
+const server = setupServer(
+  http.get('/api/me', () => HttpResponse.json({ id: 'u1', email: 'andrew@example.com' })),
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => {
+  server.resetHandlers();
+  cleanup();
+});
+afterAll(() => server.close());
+
+const detail: RecipeDetail = {
+  id: 'r1',
+  name: 'Chili',
+  servings: 'Serves 4',
+  provenance: 'A test fixture',
+  tags: ['dinner'],
+  visibility: 'private',
+  currentVersionId: 'v1',
+  currentVersionNumber: 1,
+  updateCnt: 1,
+  updateDtTm: '2026-01-01T00:00:00Z',
+  createDtTm: '2026-01-01T00:00:00Z',
+  content: {
+    contentSchemaVersion: 1,
+    ingredients: [
+      { id: 'i1', kind: 'heading', text: 'For the chili' },
+      {
+        id: 'i2',
+        kind: 'ingredient',
+        raw: '2 tbsp oil',
+        quantity: '2 tbsp',
+        item: 'oil',
+        parseStatus: 'auto',
+      },
+    ],
+    steps: [{ id: 's1', kind: 'step', text: 'Heat the oil.' }],
+  },
+};
+
+describe('<RecipeDetailPage>', () => {
+  it('renders the recipe, its sectioned ingredients, and steps', async () => {
+    server.use(http.get('/api/recipes/r1', () => HttpResponse.json(detail)));
+    renderRoute({ initialEntries: ['/recipes/r1'] });
+
+    expect(await screen.findByRole('heading', { name: 'Chili', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText('For the chili')).toBeInTheDocument();
+    expect(screen.getByText('oil')).toBeInTheDocument();
+    expect(screen.getByText('2 tbsp')).toBeInTheDocument();
+    expect(screen.getByText('Heat the oil.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /edit/i })).toHaveAttribute('href', '/recipes/r1/edit');
+  });
+
+  it('deletes the recipe on confirm and navigates back to the list', async () => {
+    server.use(
+      http.get('/api/recipes/r1', () => HttpResponse.json(detail)),
+      http.delete('/api/recipes/r1', () => new HttpResponse(null, { status: 204 })),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { router } = renderRoute({ initialEntries: ['/recipes/r1'] });
+
+    await screen.findByRole('heading', { name: 'Chili', level: 1 });
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/recipes'));
+  });
+
+  it('does not delete when the confirm dialog is dismissed', async () => {
+    server.use(http.get('/api/recipes/r1', () => HttpResponse.json(detail)));
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { router } = renderRoute({ initialEntries: ['/recipes/r1'] });
+
+    await screen.findByRole('heading', { name: 'Chili', level: 1 });
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    expect(router.state.location.pathname).toBe('/recipes/r1');
+  });
+});

@@ -1,0 +1,116 @@
+.page {
+  max-width: 720px;
+}
+
+.lead {
+  color: var(--color-text-secondary);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  margin: 0 0 var(--space-2);
+}
+
+.servings {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.btnGhost {
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  cursor: pointer;
+  border: 1.5px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  display: inline-flex;
+}
+
+.btnGhost:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.provenance {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-6);
+}
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.section h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  margin: 0 0 var(--space-3);
+}
+
+.ingredientList {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.stepList {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.step {
+  white-space: pre-wrap;
+}
+
+.ingredientList li,
+.stepList li {
+  margin-bottom: var(--space-2);
+}
+
+.heading {
+  list-style: none;
+  font-weight: var(--weight-bold);
+  color: var(--color-accent);
+  margin-top: var(--space-3);
+}
+
+/* Only the ingredient list has left padding (its markers use the default disc
+   list-style) — the step list has none, so its heading needs no offset. */
+.ingredientList .heading {
+  margin-left: calc(-1 * var(--space-5));
+}

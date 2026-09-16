@@ -10,7 +10,7 @@
  */
 
 import { Fragment, useEffect } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink, useNavigate } from 'react-router';
 
 import { BookIcon, CartIcon, DatabaseIcon, PlusIcon } from '../components/icons';
 import { MOBILE_MEDIA_QUERY } from './breakpoints';
@@ -40,6 +40,7 @@ const NAV_ITEMS: NavEntry[] = [
 
 export function NavRail() {
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
+  const navigate = useNavigate();
   const { isOpen, toggle, close, triggerRef, popoverRef } = usePopover('create');
 
   // Only one of the two trigger buttons below is ever mounted (see the module
@@ -56,10 +57,17 @@ export function NavRail() {
 
   const createMenu = (className: string | undefined) => (
     <div ref={popoverRef} className={className} role="group" aria-label="Create" hidden={!isOpen}>
-      {/* Inert. TODO: DAMN-2 (Recipe), DAMN-11 (Shopping list) — wire the create targets. */}
-      <button type="button" className={styles.createMenuItem} onClick={close}>
+      <button
+        type="button"
+        className={styles.createMenuItem}
+        onClick={() => {
+          close();
+          navigate('/recipes/new');
+        }}
+      >
         Recipe
       </button>
+      {/* Inert. TODO: DAMN-11 — wire the shopping-list create target. */}
       <button type="button" className={styles.createMenuItem} onClick={close}>
         Shopping list
       </button>

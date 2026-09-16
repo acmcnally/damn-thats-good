@@ -1,0 +1,203 @@
+.form {
+  max-width: 980px;
+}
+
+.conflictBanner,
+.errorBanner {
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.conflictBanner {
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+}
+
+.conflictBanner button {
+  display: block;
+  margin-top: var(--space-2);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.errorBanner {
+  background: color-mix(in srgb, red 12%, var(--color-bg-secondary));
+  color: var(--color-text-primary);
+}
+
+.editbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.metaColumn {
+  flex: 1;
+  min-width: 260px;
+}
+
+.editable {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background var(--dur-quick) var(--ease-out);
+}
+
+.editable:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.editable:focus {
+  background: var(--color-bg-tertiary);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 0;
+}
+
+.editable::placeholder {
+  color: var(--color-text-tertiary);
+  font-weight: var(--weight-regular);
+}
+
+.nameInput {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  width: 100%;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-text-tertiary);
+  margin-bottom: 5px;
+}
+
+.metaGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+.metaField {
+  min-width: 160px;
+}
+
+.tagsField {
+  flex: 1;
+  min-width: 240px;
+}
+
+.servingsInput {
+  font-size: var(--text-sm);
+  width: 140px;
+}
+
+.provenanceField {
+  margin-top: var(--space-4);
+  max-width: 640px;
+}
+
+.provenanceInput {
+  font-size: var(--text-sm);
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.btnPrimary,
+.btnGhost {
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+}
+
+.btnPrimary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.btnPrimary:hover {
+  background: var(--color-accent-hover);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnGhost {
+  background: transparent;
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.btnGhost:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.panel {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+}
+
+.panelHead {
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+.panelHead h2 {
+  font-size: var(--text-lg);
+  margin: 0 0 2px;
+}
+
+.hint {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.panelBody {
+  padding: var(--space-5);
+}
+
+@media (max-width: 640px) {
+  .editbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    justify-content: flex-end;
+    margin-top: var(--space-2);
+  }
+
+  .nameInput {
+    font-size: var(--text-xl);
+  }
+}
