@@ -98,4 +98,20 @@ describe('<RecipeDetailPage>', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/recipes/r1');
   });
+
+  it('shows an error and resets the button instead of failing silently when delete fails', async () => {
+    server.use(
+      http.get('/api/recipes/r1', () => HttpResponse.json(detail)),
+      http.delete('/api/recipes/r1', () => HttpResponse.json({}, { status: 500 })),
+    );
+    renderRoute({ initialEntries: ['/recipes/r1'] });
+
+    await screen.findByRole('heading', { name: 'Chili', level: 1 });
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /delete/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong deleting/i);
+    expect(screen.getByRole('button', { name: /^delete$/i })).not.toBeDisabled();
+  });
 });

@@ -6,6 +6,15 @@
   color: var(--color-text-secondary);
 }
 
+.errorBanner {
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  background: color-mix(in srgb, red 12%, var(--color-bg-secondary));
+  color: var(--color-text-primary);
+}
+
 .header {
   display: flex;
   align-items: flex-start;

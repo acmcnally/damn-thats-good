@@ -17,6 +17,7 @@ export function RecipeDetailPage() {
   const [state, setState] = useState<DetailState>({ status: 'loading' });
   const [deleting, setDeleting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -43,16 +44,23 @@ export function RecipeDetailPage() {
   async function handleDelete() {
     setConfirmingDelete(false);
     setDeleting(true);
+    setDeleteError(null);
     try {
       await deleteRecipe(getAccessToken, recipe.id);
       navigate('/recipes');
     } catch {
       setDeleting(false);
+      setDeleteError('Something went wrong deleting this recipe. Please try again.');
     }
   }
 
   return (
     <div className={styles.page}>
+      {deleteError && (
+        <div className={styles.errorBanner} role="alert">
+          {deleteError}
+        </div>
+      )}
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>{recipe.name}</h1>
