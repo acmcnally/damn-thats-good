@@ -9,14 +9,16 @@ import { loginAsTestUser } from '../support/auth';
  * detail view, edit content, save again, and confirm (via API assertion, since the
  * version-history UI is DAMN-3) that a second version was created.
  */
-test('create, list, view, and edit a recipe through the real entry UI', async ({
-  page,
-  request,
-}) => {
+test('create, list, view, and edit a recipe through the real entry UI', async ({ page }) => {
+  // Unique per run — this stack's Postgres persists across local `pnpm e2e`
+  // invocations (a named volume, not Testcontainers), so a fixed name would
+  // collide with a leftover recipe from an earlier run.
+  const recipeName = `E2E Test Chili ${Date.now()}`;
+
   await loginAsTestUser(page);
   await page.goto('/recipes/new');
 
-  await page.getByLabel('Recipe name').fill('E2E Test Chili');
+  await page.getByLabel('Recipe name').fill(recipeName);
   await page.getByLabel('Servings').fill('Serves 4');
   await page.getByLabel('Provenance').fill('Written for the DAMN-2 workflow test.');
 
@@ -47,16 +49,16 @@ test('create, list, view, and edit a recipe through the real entry UI', async ({
 
   await page.getByRole('button', { name: 'Save recipe' }).click();
   await expect(page).toHaveURL(/\/recipes\/[^/]+$/);
-  await expect(page.getByRole('heading', { name: 'E2E Test Chili', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: recipeName, level: 1 })).toBeVisible();
 
   const recipeId = page.url().split('/').pop()!;
 
   // Appears in the list.
   await page.getByRole('link', { name: 'Recipes' }).click();
-  await expect(page.getByRole('link', { name: 'E2E Test Chili' })).toBeVisible();
+  await expect(page.getByRole('link', { name: recipeName })).toBeVisible();
 
   // Open detail — the initial content round-tripped (currently version 1).
-  await page.getByRole('link', { name: 'E2E Test Chili' }).click();
+  await page.getByRole('link', { name: recipeName }).click();
   await expect(page).toHaveURL(new RegExp(`/recipes/${recipeId}$`));
   await expect(page.getByText('Heat the oil.')).toBeVisible();
 
@@ -72,7 +74,9 @@ test('create, list, view, and edit a recipe through the real entry UI', async ({
 
   // Second save actually minted a new version (API assertion — the version-history
   // UI itself is DAMN-3's).
-  const detail = await request.get(`/api/recipes/${recipeId}`);
+  // `page.request`, not the standalone `request` fixture — it shares the page's
+  // browser context, so the e2e bypass cookie `loginAsTestUser` set rides along.
+  const detail = await page.request.get(`/api/recipes/${recipeId}`);
   expect(detail.status()).toBe(200);
   expect((await detail.json()).currentVersionNumber).toBe(2);
 });
