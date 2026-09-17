@@ -106,10 +106,6 @@ export function RecipeEntryForm({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) {
-      setError('Name is required.');
-      return;
-    }
     setSaving(true);
     setError(null);
     setConflict(null);
@@ -232,8 +228,8 @@ export function RecipeEntryForm({
           <button type="button" className={styles.btnGhost} onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className={styles.btnPrimary} disabled={saving}>
-            {saving ? 'Saving…' : 'Save recipe'}
+          <button type="submit" className={styles.btnPrimary} disabled={saving || !name.trim()}>
+            {saving ? 'Saving…' : 'Save Recipe'}
           </button>
         </div>
       </div>

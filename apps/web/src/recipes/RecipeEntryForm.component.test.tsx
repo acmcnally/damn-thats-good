@@ -112,13 +112,17 @@ describe('<RecipeEntryForm> — create', () => {
     expect(body.content.steps).toHaveLength(2);
   });
 
-  it('requires a name before submitting', async () => {
+  it('disables Save Recipe until a name is entered', async () => {
     renderRoute({ initialEntries: ['/recipes/new'] });
     await screen.findByLabelText('Recipe name');
 
-    fireEvent.click(screen.getByRole('button', { name: /save recipe/i }));
+    expect(screen.getByRole('button', { name: /save recipe/i })).toBeDisabled();
 
-    expect(await screen.findByText(/name is required/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Chili' } });
+    expect(screen.getByRole('button', { name: /save recipe/i })).not.toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: '   ' } });
+    expect(screen.getByRole('button', { name: /save recipe/i })).toBeDisabled();
   });
 });
 
