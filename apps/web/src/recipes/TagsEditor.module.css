@@ -129,6 +129,10 @@
   background: var(--color-bg-tertiary);
 }
 
+.tagSuggestionActive {
+  background: var(--color-accent-muted);
+}
+
 .tagSuggestionCreate {
   color: var(--color-accent);
   font-weight: var(--weight-semibold);

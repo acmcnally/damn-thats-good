@@ -112,6 +112,36 @@ describe('<RecipeEntryForm> — create', () => {
     expect(body.content.steps).toHaveLength(2);
   });
 
+  it('lets arrow keys move through the tag suggestion list and Enter select the highlighted one', async () => {
+    server.use(
+      http.get('/api/tags', () =>
+        HttpResponse.json([
+          { id: 't1', name: 'dessert' },
+          { id: 't2', name: 'dinner' },
+        ]),
+      ),
+    );
+    renderRoute({ initialEntries: ['/recipes/new'] });
+    await screen.findByLabelText('Recipe name');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }));
+    const tagInput = screen.getByPlaceholderText('Search or create…');
+    fireEvent.change(tagInput, { target: { value: 'd' } });
+
+    // Both suggestions ("dessert", "dinner") plus the "Create" option are
+    // keyboard stops, in that on-screen order.
+    await screen.findByRole('option', { name: 'dessert' });
+    fireEvent.keyDown(tagInput, { key: 'ArrowDown' }); // -> Create "d"
+    fireEvent.keyDown(tagInput, { key: 'ArrowDown' }); // -> dessert
+    fireEvent.keyDown(tagInput, { key: 'ArrowDown' }); // -> dinner
+    fireEvent.keyDown(tagInput, { key: 'ArrowUp' }); // back to dessert
+    fireEvent.keyDown(tagInput, { key: 'Enter' });
+
+    expect(screen.getByText('dessert')).toBeInTheDocument();
+    expect(screen.queryByText('dinner')).not.toBeInTheDocument();
+    expect(tagInput).not.toBeInTheDocument(); // selecting closes the add-tag control
+  });
+
   it('disables Save Recipe until a name is entered', async () => {
     renderRoute({ initialEntries: ['/recipes/new'] });
     await screen.findByLabelText('Recipe name');

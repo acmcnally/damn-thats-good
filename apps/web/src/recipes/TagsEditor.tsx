@@ -20,6 +20,10 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
   const [isAdding, setIsAdding] = useState(false);
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Index into the rendered suggestion list (Create-option included), not the
+  // filtered-suggestions array alone — -1 means nothing is keyboard-highlighted,
+  // so Enter falls back to acting on the typed text.
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -31,6 +35,11 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
     }, 150);
     return () => clearTimeout(handle);
   }, [isAdding, query, getAccessToken]);
+
+  // A fresh query invalidates whatever was highlighted for the previous list.
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [query]);
 
   function removeTag(tag: string) {
     onChange(tags.filter((t) => t !== tag));
@@ -52,6 +61,16 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
     (s) => !tags.includes(s) && s.includes(normalizedQuery),
   );
   const exactMatch = normalizedQuery && filteredSuggestions.some((s) => s === normalizedQuery);
+
+  // Flattened in on-screen order — the Create option, if shown, is a keyboard
+  // stop just like the existing-tag suggestions below it.
+  const listItems = [
+    ...(query.trim() && !exactMatch ? [query.trim()] : []),
+    ...filteredSuggestions.slice(0, 6),
+  ];
+  // Clamped rather than trusted as-is: the list can shrink out from under a
+  // stale index when suggestions re-resolve after a debounce.
+  const activeIndex = listItems.length > 0 ? Math.min(highlightedIndex, listItems.length - 1) : -1;
 
   return (
     <div className={styles.tagList}>
@@ -75,14 +94,27 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'ArrowDown') {
+                if (listItems.length === 0) return;
                 e.preventDefault();
-                if (query.trim()) addTag(query);
+                setHighlightedIndex(Math.min(activeIndex + 1, listItems.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                if (listItems.length === 0) return;
+                e.preventDefault();
+                setHighlightedIndex(Math.max(activeIndex - 1, -1));
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (activeIndex >= 0) addTag(listItems[activeIndex]!);
+                else if (query.trim()) addTag(query);
               } else if (e.key === 'Escape') {
                 setIsAdding(false);
                 setQuery('');
               }
             }}
+            role="combobox"
+            aria-expanded={listItems.length > 0}
+            aria-controls="tag-suggestions"
+            aria-activedescendant={activeIndex >= 0 ? `tag-suggestion-${activeIndex}` : undefined}
             onBlur={() => {
               setTimeout(() => {
                 if (document.activeElement !== inputRef.current) {
@@ -93,11 +125,14 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
             }}
           />
           {(query.trim() || filteredSuggestions.length > 0) && (
-            <div className={styles.tagSuggestions}>
+            <div className={styles.tagSuggestions} id="tag-suggestions" role="listbox">
               {query.trim() && !exactMatch && (
                 <button
                   type="button"
-                  className={styles.tagSuggestionCreate}
+                  id="tag-suggestion-0"
+                  role="option"
+                  aria-selected={activeIndex === 0}
+                  className={`${styles.tagSuggestionCreate} ${activeIndex === 0 ? styles.tagSuggestionActive : ''}`}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     addTag(query);
@@ -106,19 +141,25 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
                   Create &quot;{query.trim()}&quot;
                 </button>
               )}
-              {filteredSuggestions.slice(0, 6).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={styles.tagSuggestion}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    addTag(s);
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
+              {filteredSuggestions.slice(0, 6).map((s, i) => {
+                const index = (query.trim() && !exactMatch ? 1 : 0) + i;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    id={`tag-suggestion-${index}`}
+                    role="option"
+                    aria-selected={activeIndex === index}
+                    className={`${styles.tagSuggestion} ${activeIndex === index ? styles.tagSuggestionActive : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      addTag(s);
+                    }}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
