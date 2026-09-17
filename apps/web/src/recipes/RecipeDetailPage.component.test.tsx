@@ -69,6 +69,25 @@ describe('<RecipeDetailPage>', () => {
     expect(screen.getByRole('link', { name: /edit/i })).toHaveAttribute('href', '/recipes/r1/edit');
   });
 
+  it('renders a URL in the provenance field as a clickable link', async () => {
+    server.use(
+      http.get('/api/recipes/r1', () =>
+        HttpResponse.json({
+          ...detail,
+          provenance: 'See https://grandma-recipes.example/chili for the original.',
+        }),
+      ),
+    );
+    renderRoute({ initialEntries: ['/recipes/r1'] });
+
+    await screen.findByRole('heading', { name: 'Chili', level: 1 });
+    const link = screen.getByRole('link', { name: 'https://grandma-recipes.example/chili' });
+    expect(link).toHaveAttribute('href', 'https://grandma-recipes.example/chili');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.getByText(/^See/)).toBeInTheDocument();
+    expect(screen.getByText(/for the original\.$/)).toBeInTheDocument();
+  });
+
   it('deletes the recipe on confirm and navigates back to the list', async () => {
     server.use(
       http.get('/api/recipes/r1', () => HttpResponse.json(detail)),

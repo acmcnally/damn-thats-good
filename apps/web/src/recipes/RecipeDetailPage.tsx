@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Linkify } from '../components/Linkify';
 import { useShellContext } from '../shell/shellContext';
 import { deleteRecipe, getRecipe } from './api';
 import styles from './RecipeDetailPage.module.css';
@@ -100,7 +101,11 @@ export function RecipeDetailPage() {
         onCancel={() => setConfirmingDelete(false)}
       />
 
-      {recipe.provenance && <p className={styles.provenance}>{recipe.provenance}</p>}
+      {recipe.provenance && (
+        <p className={styles.provenance}>
+          <Linkify text={recipe.provenance} />
+        </p>
+      )}
 
       <section className={styles.section}>
         <h2>Ingredients</h2>
