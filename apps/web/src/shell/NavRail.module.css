@@ -149,7 +149,7 @@
   right: 0;
   bottom: 0;
   z-index: 10;
-  height: calc(62px + var(--tabbar-safe-bottom));
+  height: calc(var(--tabbar-height) + var(--tabbar-safe-bottom));
   display: flex;
   align-items: stretch;
   border-top: 1px solid var(--color-border);

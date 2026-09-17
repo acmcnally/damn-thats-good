@@ -85,6 +85,15 @@
      footprint and the scroll clearance for it can't drift apart. */
   --fab-size: 56px;
   --fab-offset-bottom: 53px;
+
+  /* Mobile bottom tab bar (NavRail.module.css) — its fixed part, before the
+     safe-area inset it also pads for. Shared with RecipeEntryForm.module.css
+     so its floating mobile action bar can sit flush above the tab bar
+     without the two drifting apart. */
+  --tabbar-height: 62px;
+
+  /* RecipeEntryForm's fixed mobile Cancel/Save bar (RecipeEntryForm.module.css). */
+  --recipe-actionbar-height: 72px;
 }
 
 /* ===================================================================== */

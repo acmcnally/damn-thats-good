@@ -132,7 +132,7 @@ describe('mobile nav (bottom tab bar, <=640px)', () => {
     );
   });
 
-  it('Create FAB opens the same inert popover as desktop, and closes without navigating', async () => {
+  it('Create FAB opens the same popover as desktop, and its Recipe item navigates to the new-recipe form', async () => {
     stubMatchMedia(MOBILE_MEDIA_QUERY, true);
     const { router } = renderRoute({ initialEntries: ['/'] });
 
@@ -145,6 +145,28 @@ describe('mobile nav (bottom tab bar, <=640px)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^recipe$/i }));
     expect(fab).toHaveAttribute('aria-expanded', 'false');
+    expect(router.state.location.pathname).toBe('/recipes/new');
+  });
+
+  it('the inert Shopping list item just closes the Create popover, without navigating', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    const { router } = renderRoute({ initialEntries: ['/'] });
+
+    const fab = await screen.findByRole('button', { name: /^create$/i });
+    fireEvent.click(fab);
+    expect(screen.getByRole('group', { name: /create/i })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /^shopping list$/i }));
+    expect(fab).toHaveAttribute('aria-expanded', 'false');
     expect(router.state.location.pathname).toBe('/');
+  });
+
+  it('hides the Create FAB while the recipe entry form is open, but keeps the tab bar', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    renderRoute({ initialEntries: ['/recipes/new'] });
+
+    await screen.findByLabelText('Recipe name');
+    expect(screen.queryByRole('button', { name: /^create$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^recipes$/i })).toBeInTheDocument();
   });
 });

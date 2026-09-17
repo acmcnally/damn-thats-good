@@ -1,0 +1,58 @@
+.demo {
+  display: inline-block;
+  font: var(--text-sm) / 1.6 var(--font-mono, monospace);
+}
+
+/* "For the sauce:" is exactly 14 characters — the width keyframes below reveal it
+   one character at a time, then hold the full string while it "becomes" a heading. */
+.text {
+  display: inline-block;
+  overflow: hidden;
+  white-space: pre;
+  vertical-align: bottom;
+  width: 14ch;
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  animation: heading-demo 4s var(--ease-out) infinite;
+}
+
+@keyframes heading-demo {
+  0% {
+    width: 0;
+    color: var(--color-text-primary);
+    text-decoration-color: transparent;
+  }
+  45% {
+    width: 14ch;
+    color: var(--color-text-primary);
+    text-decoration-color: transparent;
+    animation-timing-function: steps(14, end);
+  }
+  60% {
+    width: 14ch;
+    color: var(--color-accent);
+    text-decoration-color: var(--color-accent-muted);
+  }
+  90% {
+    width: 14ch;
+    color: var(--color-accent);
+    text-decoration-color: var(--color-accent-muted);
+  }
+  100% {
+    width: 0;
+    color: var(--color-text-primary);
+    text-decoration-color: transparent;
+    animation-timing-function: steps(1, jump-start);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text {
+    animation: none;
+    width: 14ch;
+    color: var(--color-accent);
+    text-decoration-color: var(--color-accent-muted);
+  }
+}

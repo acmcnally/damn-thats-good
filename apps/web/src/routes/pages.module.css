@@ -1,6 +1,5 @@
-/* Shared styling for the placeholder pages (Recipes, Shopping Lists, Data,
-   Profile).
-   TODO: DAMN-2 / DAMN-11 / DAMN-14 — real feature UI replaces these pages. */
+/* Shared styling for the placeholder pages (Shopping Lists, Data, Profile).
+   TODO: DAMN-11 / DAMN-14 — real feature UI replaces these pages. */
 
 .page {
   max-width: 70ch;

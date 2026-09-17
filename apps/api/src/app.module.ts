@@ -8,6 +8,7 @@ import { BooksModule } from './books/books.module';
 import { validateEnv } from './config/env';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { RecipesModule } from './recipes/recipes.module';
 import { UsersModule } from './users/users.module';
 
 // Repo-root .env, resolved from this file's location (not cwd) so it works however the
@@ -22,6 +23,7 @@ const repoEnvFile = fileURLToPath(new URL('../../../.env', import.meta.url));
     HealthModule,
     UsersModule,
     BooksModule,
+    RecipesModule,
     AuthModule, // registers the global JwtAuthGuard (DAMN-1) — every route is
     // authenticated by default from here on; @Public() opts a route out.
   ],
