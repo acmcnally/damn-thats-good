@@ -202,31 +202,74 @@ describe('reconcileLines', () => {
     expect(result[0]!.id).not.toBe(second.id);
   });
 
-  it('drops blank lines instead of producing an empty-item/text line', () => {
-    // A blank line is pure editing whitespace (e.g. between a section's last
-    // item and the next heading) — never content. Left in, this would produce
-    // an ingredient/step whose item/text is empty, which the schema rejects.
+  it('keeps a blank line as its own line instead of producing an empty-item/text line', () => {
+    // A blank line is pure editing whitespace (e.g. between a section's last item and
+    // the next heading), never content — but it's still stored, as `kind: 'blank'`, so
+    // the spacing survives a save instead of collapsing on reload. Left as an
+    // ingredient/step, it would have an empty item/text, which the schema rejects.
     const result = reconcileLines<IngredientOrHeadingLine>(
       [],
       ['2 cups flour', '', '   ', '1 onion'],
       ingredientOrHeadingLineToRawText,
       parseNewIngredientOrHeadingLine,
     );
-    expect(result).toHaveLength(2);
+    expect(result.map((l) => l.kind)).toEqual(['ingredient', 'blank', 'blank', 'ingredient']);
     expect(result.map((l) => (l.kind === 'ingredient' ? l.item : null))).toEqual([
       'flour',
+      null,
+      null,
       'onion',
+    ]);
+    // Round-trips back to an empty line either way, regardless of exactly how much
+    // whitespace it was.
+    expect(result.map(ingredientOrHeadingLineToRawText)).toEqual([
+      '2 cups flour',
+      '',
+      '',
+      '1 onion',
     ]);
   });
 
-  it('drops blank lines for steps too', () => {
+  it('keeps blank lines for steps too', () => {
     const result = reconcileLines<StepOrHeadingLine>(
       [],
       ['Heat the oil.', '', 'Add the onion.'],
       stepOrHeadingLineToRawText,
       parseNewStepOrHeadingLine,
     );
-    expect(result).toHaveLength(2);
+    expect(result.map((l) => l.kind)).toEqual(['step', 'blank', 'step']);
+    expect(result.map(stepOrHeadingLineToRawText)).toEqual(['Heat the oil.', '', 'Add the onion.']);
+  });
+
+  it('keeps a blank line stable (same id) across a re-reconcile of the surrounding lines', () => {
+    const first = reconcileLines<StepOrHeadingLine>(
+      [],
+      ['Heat the oil.', ''],
+      stepOrHeadingLineToRawText,
+      parseNewStepOrHeadingLine,
+    );
+    const blankId = first[1]!.id;
+
+    const second = reconcileLines(
+      first,
+      ['Heat the oil.', '', 'Add the onion.'],
+      stepOrHeadingLineToRawText,
+      parseNewStepOrHeadingLine,
+    );
+    expect(second[1]!.id).toBe(blankId);
+  });
+
+  it('validates a blank line against the schema', () => {
+    const result = recipeContentSchema.safeParse(
+      content(
+        [],
+        [
+          { id: crypto.randomUUID(), kind: 'step', text: 'Heat the oil.' },
+          { id: crypto.randomUUID(), kind: 'blank' },
+        ],
+      ),
+    );
+    expect(result.success).toBe(true);
   });
 
   it('round-trips a heading line through its colon-stripped storage form', () => {

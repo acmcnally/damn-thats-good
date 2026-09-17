@@ -82,7 +82,7 @@ describe('<RecipeEntryForm> — create', () => {
     ]);
   });
 
-  it('drops blank lines between ingredients/steps instead of submitting an empty item', async () => {
+  it('keeps blank lines between ingredients/steps as their own line instead of an empty item', async () => {
     let requestBody: unknown;
     server.use(
       http.post('/api/recipes', async ({ request }) => {
@@ -108,8 +108,16 @@ describe('<RecipeEntryForm> — create', () => {
     const body = requestBody as {
       content: { ingredients: { kind: string }[]; steps: { kind: string }[] };
     };
-    expect(body.content.ingredients).toHaveLength(4); // 2 headings + 2 ingredient lines, no blank
-    expect(body.content.steps).toHaveLength(2);
+    // 2 headings + 1 blank + 2 ingredient lines — the save doesn't 400 on the blank
+    // line, and it isn't silently dropped either.
+    expect(body.content.ingredients.map((l) => l.kind)).toEqual([
+      'heading',
+      'ingredient',
+      'blank',
+      'heading',
+      'ingredient',
+    ]);
+    expect(body.content.steps.map((l) => l.kind)).toEqual(['step', 'blank', 'step']);
   });
 
   it('lets arrow keys move through the tag suggestion list and Enter select the highlighted one', async () => {
@@ -220,5 +228,26 @@ describe('<RecipeEntryForm> — edit', () => {
     // so assert on that structure instead of a class name.
     const line = document.querySelector('[data-eline]');
     expect(line?.querySelector('span')?.textContent).toBe('3 large');
+  });
+
+  it('preserves blank-line spacing in the steps field when reopening a saved recipe', async () => {
+    const withBlankStep: RecipeDetail = {
+      ...existing,
+      id: 'r3',
+      content: {
+        contentSchemaVersion: 1,
+        ingredients: [],
+        steps: [
+          { id: '22222222-2222-2222-2222-222222222222', kind: 'step', text: 'Heat the oil.' },
+          { id: '33333333-3333-3333-3333-333333333333', kind: 'blank' },
+          { id: '44444444-4444-4444-4444-444444444444', kind: 'step', text: 'Add the onion.' },
+        ],
+      },
+    };
+    server.use(http.get('/api/recipes/r3', () => HttpResponse.json(withBlankStep)));
+    renderRoute({ initialEntries: ['/recipes/r3/edit'] });
+
+    const stepsField = await screen.findByLabelText('Steps');
+    expect(stepsField).toHaveValue('Heat the oil.\n\nAdd the onion.');
   });
 });

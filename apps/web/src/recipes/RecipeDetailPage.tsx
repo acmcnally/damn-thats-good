@@ -109,46 +109,52 @@ export function RecipeDetailPage() {
 
       <section className={styles.section}>
         <h2>Ingredients</h2>
-        {recipe.content.ingredients.length === 0 ? (
+        {recipe.content.ingredients.every((line) => line.kind === 'blank') ? (
           <p className={styles.lead}>No ingredients yet.</p>
         ) : (
           <ul className={styles.ingredientList}>
-            {recipe.content.ingredients.map((line) =>
-              line.kind === 'heading' ? (
-                <li key={line.id} className={styles.heading}>
-                  {line.text}
-                </li>
-              ) : (
-                <li key={line.id}>
-                  {line.quantity && <strong>{line.quantity} </strong>}
-                  {line.item}
-                </li>
-              ),
-            )}
+            {recipe.content.ingredients
+              // Blank lines are spacing for the edit textarea, not list content.
+              .filter((line) => line.kind !== 'blank')
+              .map((line) =>
+                line.kind === 'heading' ? (
+                  <li key={line.id} className={styles.heading}>
+                    {line.text}
+                  </li>
+                ) : (
+                  <li key={line.id}>
+                    {line.quantity && <strong>{line.quantity} </strong>}
+                    {line.item}
+                  </li>
+                ),
+              )}
           </ul>
         )}
       </section>
 
       <section className={styles.section}>
         <h2>Steps</h2>
-        {recipe.content.steps.length === 0 ? (
+        {recipe.content.steps.every((line) => line.kind === 'blank') ? (
           <p className={styles.lead}>No steps yet.</p>
         ) : (
           <ul className={styles.stepList}>
-            {recipe.content.steps.map((line) =>
-              line.kind === 'heading' ? (
-                <li key={line.id} className={styles.heading}>
-                  {line.text}
-                </li>
-              ) : (
-                // Numbered/bulleted markers are literal characters in `text` (decision
-                // #4) — no list-style numbering here, or the browser's own numbering
-                // would double up with whatever the user typed ("1." next to "1.").
-                <li key={line.id} className={styles.step}>
-                  {line.text}
-                </li>
-              ),
-            )}
+            {recipe.content.steps
+              // Blank lines are spacing for the edit textarea, not list content.
+              .filter((line) => line.kind !== 'blank')
+              .map((line) =>
+                line.kind === 'heading' ? (
+                  <li key={line.id} className={styles.heading}>
+                    {line.text}
+                  </li>
+                ) : (
+                  // Numbered/bulleted markers are literal characters in `text` (decision
+                  // #4) — no list-style numbering here, or the browser's own numbering
+                  // would double up with whatever the user typed ("1." next to "1.").
+                  <li key={line.id} className={styles.step}>
+                    {line.text}
+                  </li>
+                ),
+              )}
           </ul>
         )}
       </section>

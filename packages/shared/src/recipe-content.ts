@@ -12,6 +12,17 @@ const headingLine = z.object({
   text: z.string().trim().min(1).max(200), // stored WITHOUT trailing colon — see decision #3
 });
 
+/** A blank (or whitespace-only) line the user left as spacing — between a section's
+ * last item and the next heading, say. Carries no content of its own; kept as its own
+ * line so the spacing survives a save instead of collapsing when the recipe is
+ * reopened for editing. Never produced by anything that reads recipe content for
+ * search/scaling/shopping-list purposes — those skip it same as they'd skip nothing
+ * at all. */
+const blankLine = z.object({
+  id: lineId,
+  kind: z.literal('blank'),
+});
+
 /**
  * `quantity` and `item` are the two substrings either side of the tokenizer's detected
  * (or user-dragged) boundary. Both plain strings in V1 — "2 cups", "1 1/2", "a pinch" for
@@ -46,11 +57,11 @@ function uniqueIds(entries: { id: string }[], ctx: z.RefinementCtx) {
 export const recipeContentSchema = z.object({
   contentSchemaVersion: z.literal(CONTENT_SCHEMA_VERSION),
   ingredients: z
-    .array(z.discriminatedUnion('kind', [headingLine, ingredientLine]))
+    .array(z.discriminatedUnion('kind', [headingLine, ingredientLine, blankLine]))
     .max(300)
     .superRefine(uniqueIds),
   steps: z
-    .array(z.discriminatedUnion('kind', [headingLine, stepLine]))
+    .array(z.discriminatedUnion('kind', [headingLine, stepLine, blankLine]))
     .max(300)
     .superRefine(uniqueIds),
 });
@@ -59,6 +70,7 @@ export type RecipeContent = z.infer<typeof recipeContentSchema>;
 export type HeadingLine = z.infer<typeof headingLine>;
 export type IngredientLine = z.infer<typeof ingredientLine>;
 export type StepLine = z.infer<typeof stepLine>;
+export type BlankLine = z.infer<typeof blankLine>;
 export type IngredientOrHeadingLine = RecipeContent['ingredients'][number];
 export type StepOrHeadingLine = RecipeContent['steps'][number];
 
@@ -76,19 +88,22 @@ function isHeadingText(trimmed: string): boolean {
  * `canonicalText` and to seed the entry form's textarea when a recipe is loaded for
  * editing, so the two stay in lockstep by construction. */
 export function ingredientOrHeadingLineToRawText(line: IngredientOrHeadingLine): string {
+  if (line.kind === 'blank') return '';
   return line.kind === 'heading' ? `${line.text}:` : line.raw;
 }
 
 /** Same as above, for the steps field. */
 export function stepOrHeadingLineToRawText(line: StepOrHeadingLine): string {
+  if (line.kind === 'blank') return '';
   return line.kind === 'heading' ? `${line.text}:` : line.text;
 }
 
 /** Fresh auto-parse for an ingredient/heading line with no previous match. */
 export function parseNewIngredientOrHeadingLine(
   raw: string,
-): Omit<HeadingLine, 'id'> | Omit<IngredientLine, 'id'> {
+): Omit<HeadingLine, 'id'> | Omit<IngredientLine, 'id'> | Omit<BlankLine, 'id'> {
   const trimmed = raw.trim();
+  if (!trimmed) return { kind: 'blank' };
   if (isHeadingText(trimmed)) {
     return { kind: 'heading', text: trimmed.slice(0, -1).trim() };
   }
@@ -100,8 +115,9 @@ export function parseNewIngredientOrHeadingLine(
 /** Fresh auto-parse for a step/heading line with no previous match. */
 export function parseNewStepOrHeadingLine(
   raw: string,
-): Omit<HeadingLine, 'id'> | Omit<StepLine, 'id'> {
+): Omit<HeadingLine, 'id'> | Omit<StepLine, 'id'> | Omit<BlankLine, 'id'> {
   const trimmed = raw.trim();
+  if (!trimmed) return { kind: 'blank' };
   if (isHeadingText(trimmed)) {
     return { kind: 'heading', text: trimmed.slice(0, -1).trim() };
   }
@@ -120,10 +136,13 @@ export function parseNewStepOrHeadingLine(
  * left-to-right order — low-stakes either way, since a wrong resolution there attributes
  * a diff entry to a line that reads identically anyway, not data corruption.
  *
- * A blank (or whitespace-only) line is dropped before any of this runs — it's pure
- * editing whitespace between sections (the mockup's own seed data has one before a new
- * heading), never a line of content. Left in, it would become an ingredient/step whose
- * `item`/`text` is empty, which the schema rejects outright (both require non-empty).
+ * A blank (or whitespace-only) line is pure editing whitespace, not content, but it
+ * still becomes its own `kind: 'blank'` line rather than being dropped — that's what
+ * lets the spacing survive a save instead of collapsing the next time the recipe is
+ * reopened for editing. Canonicalized to `''` before matching (regardless of exactly
+ * how much whitespace it is) so the LCS pass doesn't churn ids over whitespace that
+ * doesn't matter — every blank current line matches any blank previous line
+ * interchangeably, same as the general "duplicate identical lines" case below.
  */
 export function reconcileLines<T extends { id: string }>(
   previous: T[],
@@ -131,16 +150,16 @@ export function reconcileLines<T extends { id: string }>(
   canonicalText: (line: T) => string,
   parseNew: (raw: string) => Omit<T, 'id'>,
 ): T[] {
-  const meaningfulLines = currentRawLines.filter((line) => line.trim().length > 0);
+  const currentTexts = currentRawLines.map((line) => (line.trim() ? line : ''));
   const prevTexts = previous.map(canonicalText);
   const n = prevTexts.length;
-  const m = meaningfulLines.length;
+  const m = currentTexts.length;
 
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       dp[i]![j] =
-        prevTexts[i] === meaningfulLines[j]
+        prevTexts[i] === currentTexts[j]
           ? dp[i + 1]![j + 1]! + 1
           : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
     }
@@ -150,7 +169,7 @@ export function reconcileLines<T extends { id: string }>(
   let i = 0;
   let j = 0;
   while (i < n && j < m) {
-    if (prevTexts[i] === meaningfulLines[j]) {
+    if (prevTexts[i] === currentTexts[j]) {
       matchedByCurrentIndex.set(j, i);
       i++;
       j++;
@@ -161,7 +180,7 @@ export function reconcileLines<T extends { id: string }>(
     }
   }
 
-  return meaningfulLines.map((raw, j) => {
+  return currentRawLines.map((raw, j) => {
     const matchedIndex = matchedByCurrentIndex.get(j);
     if (matchedIndex !== undefined) return previous[matchedIndex]!;
     return { id: crypto.randomUUID(), ...parseNew(raw) } as T;
@@ -198,6 +217,7 @@ function lineContentEquals<T extends { kind: string }>(a: T, b: T): boolean {
   if (a.kind === 'step') {
     return (a as unknown as StepLine).text === (b as unknown as StepLine).text;
   }
+  if (a.kind === 'blank') return true; // no fields beyond id/kind to compare
   return false;
 }
 
