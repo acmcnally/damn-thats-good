@@ -3,7 +3,7 @@
 # only path routing: /api/* to the NestJS service, everything else to the static SPA.
 :8080 {
 	handle /api/* {
-		reverse_proxy api:3000
+		reverse_proxy api:{$API_PORT:3000}
 	}
 
 	handle {
