@@ -2,34 +2,10 @@
   max-width: 980px;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
 .title {
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
-  margin: 0;
-}
-
-.newButton {
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-full);
-  padding: 10px 20px;
-  font-weight: var(--weight-semibold);
-  font-size: var(--text-md);
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  text-decoration: none;
-}
-
-.newButton:hover {
-  background: var(--color-accent-hover);
+  margin: 0 0 var(--space-5);
 }
 
 .lead {

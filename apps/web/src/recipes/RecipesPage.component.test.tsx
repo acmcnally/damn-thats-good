@@ -62,14 +62,4 @@ describe('<RecipesPage>', () => {
 
     expect(await screen.findByText(/couldn't load/i)).toBeInTheDocument();
   });
-
-  it('the "New recipe" link points at the entry form', async () => {
-    server.use(http.get('/api/recipes', () => HttpResponse.json([])));
-    renderRoute({ initialEntries: ['/recipes'] });
-
-    expect(await screen.findByRole('link', { name: /new recipe/i })).toHaveAttribute(
-      'href',
-      '/recipes/new',
-    );
-  });
 });

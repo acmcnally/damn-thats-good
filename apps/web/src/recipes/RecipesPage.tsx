@@ -29,12 +29,7 @@ export function RecipesPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Recipes</h1>
-        <Link to="/recipes/new" className={styles.newButton}>
-          New recipe
-        </Link>
-      </div>
+      <h1 className={styles.title}>Recipes</h1>
 
       {state.status === 'loading' && <p className={styles.lead}>Loading…</p>}
       {state.status === 'error' && (
