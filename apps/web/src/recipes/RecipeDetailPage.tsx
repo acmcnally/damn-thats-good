@@ -65,9 +65,9 @@ export function RecipeDetailPage() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>{recipe.name}</h1>
-          {recipe.servings && <p className={styles.servings}>{recipe.servings}</p>}
-          {recipe.tags.length > 0 && (
-            <div className={styles.tags}>
+          {(recipe.servings || recipe.tags.length > 0) && (
+            <div className={styles.meta}>
+              {recipe.servings && <span className={styles.servings}>{recipe.servings}</span>}
               {recipe.tags.map((tag) => (
                 <span key={tag} className={styles.tag}>
                   {tag}

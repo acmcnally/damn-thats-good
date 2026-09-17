@@ -29,15 +29,16 @@
   margin: 0 0 var(--space-2);
 }
 
-.servings {
-  margin: 0 0 var(--space-2);
-  color: var(--color-text-secondary);
-}
-
-.tags {
+.meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+  margin: 0 0 var(--space-2);
+}
+
+.servings {
+  color: var(--color-text-secondary);
 }
 
 .tag {
