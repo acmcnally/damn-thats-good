@@ -158,4 +158,37 @@ describe('<RecipeEntryForm> — edit', () => {
 
     expect(patchBody).toMatchObject({ servings: '', provenance: '' });
   });
+
+  it('keeps a manually confirmed ingredient boundary instead of re-auto-detecting it', async () => {
+    const withConfirmedIngredient: RecipeDetail = {
+      ...existing,
+      id: 'r2',
+      content: {
+        contentSchemaVersion: 1,
+        ingredients: [
+          {
+            id: '11111111-1111-1111-1111-111111111111',
+            kind: 'ingredient',
+            raw: '3 large eggs, beaten',
+            // Auto-detection alone would only recognize "3" (no unit word
+            // follows) — this quantity reflects a user's drag correction.
+            quantity: '3 large',
+            item: 'eggs, beaten',
+            parseStatus: 'confirmed',
+          },
+        ],
+        steps: [],
+      },
+    };
+    server.use(http.get('/api/recipes/r2', () => HttpResponse.json(withConfirmedIngredient)));
+    renderRoute({ initialEntries: ['/recipes/r2/edit'] });
+
+    await screen.findByLabelText('Ingredients');
+
+    // The highlight overlay wraps the recognized quantity in a <span> (see
+    // IngredientsField); CSS module class names aren't resolved under Vitest,
+    // so assert on that structure instead of a class name.
+    const line = document.querySelector('[data-eline]');
+    expect(line?.querySelector('span')?.textContent).toBe('3 large');
+  });
 });

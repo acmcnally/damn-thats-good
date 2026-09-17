@@ -6,6 +6,7 @@
  */
 
 import {
+  getWords,
   type IngredientOrHeadingLine,
   ingredientOrHeadingLineToRawText,
   parseNewIngredientOrHeadingLine,
@@ -54,7 +55,18 @@ export function RecipeEntryForm({
   // IngredientsField's module comment for why not index) — owned here, not
   // inside IngredientsField, because a confirmed boundary needs to be baked
   // into the saved quantity/item at blur/submit time, not just live-highlighted.
-  const [ingredientOverrides, setIngredientOverrides] = useState<Record<string, number>>({});
+  // Seeded from any previously confirmed lines so reopening a saved recipe
+  // doesn't fall back to re-auto-detecting a boundary the user already
+  // corrected by hand.
+  const [ingredientOverrides, setIngredientOverrides] = useState<Record<string, number>>(() => {
+    const seeded: Record<string, number> = {};
+    for (const line of initial?.content.ingredients ?? []) {
+      if (line.kind === 'ingredient' && line.parseStatus === 'confirmed') {
+        seeded[line.raw] = getWords(line.quantity).length;
+      }
+    }
+    return seeded;
+  });
 
   // Tracks the server's current optimistic-concurrency counter/version across
   // saves — refreshed after each successful write so a retry after a partial
