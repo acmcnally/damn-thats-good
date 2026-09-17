@@ -19,9 +19,12 @@ import {
 } from '@dtg/shared';
 import { type FormEvent, useState } from 'react';
 
+import { HelpTooltip } from '../components/HelpTooltip';
 import { ApiError, createRecipe, saveRecipeContent, updateRecipeMetadata } from './api';
+import { DragBoundaryDemo } from './DragBoundaryDemo';
 import { IngredientsField } from './IngredientsField';
 import styles from './RecipeEntryForm.module.css';
+import { SectionHeadingDemo } from './SectionHeadingDemo';
 import { StepsField } from './StepsField';
 import { TagsEditor } from './TagsEditor';
 
@@ -249,10 +252,18 @@ export function RecipeEntryForm({
       <section className={styles.panel}>
         <div className={styles.panelHead}>
           <h2>Ingredients</h2>
-          <p className={styles.hint}>
-            Works best as quantity, unit, then ingredient — like &quot;2 tbsp olive oil&quot;. Drag
-            a highlight&apos;s edge to correct a wrong split.
-          </p>
+          <HelpTooltip label="Ingredients help">
+            <p className={styles.helpText}>
+              Type quantity, unit, then ingredient — like &quot;2 tbsp olive oil&quot;. The
+              recognized quantity is highlighted; drag its edge if it split the line in the wrong
+              place:
+            </p>
+            <DragBoundaryDemo />
+            <p className={styles.helpText}>
+              End a line with a colon to turn it into a section heading:
+            </p>
+            <SectionHeadingDemo />
+          </HelpTooltip>
         </div>
         <div className={styles.panelBody}>
           <IngredientsField
@@ -268,10 +279,16 @@ export function RecipeEntryForm({
       <section className={styles.panel}>
         <div className={styles.panelHead}>
           <h2>Steps</h2>
-          <p className={styles.hint}>
-            One step per line. Numbered (&quot;1.&quot;) and bulleted (&quot;-&quot;) lists continue
-            automatically on Enter.
-          </p>
+          <HelpTooltip label="Steps help">
+            <p className={styles.helpText}>
+              End a line with a colon to turn it into a section heading:
+            </p>
+            <SectionHeadingDemo />
+            <p className={styles.helpText}>
+              Numbered (&quot;1.&quot;) and bulleted (&quot;-&quot;) lists continue automatically
+              when you press Enter.
+            </p>
+          </HelpTooltip>
         </div>
         <div className={styles.panelBody}>
           <StepsField

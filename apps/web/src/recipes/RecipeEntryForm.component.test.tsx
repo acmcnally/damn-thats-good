@@ -162,6 +162,18 @@ describe('<RecipeEntryForm> — create', () => {
     fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: '   ' } });
     expect(screen.getByRole('button', { name: /save recipe/i })).toBeDisabled();
   });
+
+  it('shows Ingredients/Steps help behind their own glyphs, not as always-visible text', async () => {
+    renderRoute({ initialEntries: ['/recipes/new'] });
+    await screen.findByLabelText('Recipe name');
+
+    expect(screen.queryByRole('group', { name: 'Ingredients help' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ingredients help' }));
+    expect(screen.getByText(/drag its edge/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Steps help' }));
+    expect(screen.getByText(/numbered.*and bulleted.*lists continue/i)).toBeInTheDocument();
+  });
 });
 
 describe('<RecipeEntryForm> — edit', () => {

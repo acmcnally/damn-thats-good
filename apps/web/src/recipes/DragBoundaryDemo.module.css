@@ -1,0 +1,75 @@
+/* Monospace so a `ch`-based boundary offset ("6ch" = after "2 tbsp") lands on an
+   exact character edge — the real editor measures actual pixel offsets instead
+   (domMeasure.ts), which this static demo has no live text to measure against. */
+.line {
+  position: relative;
+  display: inline-block;
+  font: var(--text-sm) / 1.8 var(--font-mono, monospace);
+  white-space: pre;
+}
+
+.base {
+  display: block;
+  color: var(--color-text-primary);
+}
+
+/* Stacked exactly on top of `.base` (same text, same font) and clipped down to
+   just the recognized-quantity portion, so it reads as that portion of the
+   underlying text being highlighted rather than a separate box. */
+.highlight {
+  position: absolute;
+  inset: 0;
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  clip-path: inset(0 calc(100% - 6ch) 0 0);
+  animation: drag-highlight-demo 3.5s ease-in-out infinite;
+}
+
+.handle {
+  top: 0;
+  height: 100%;
+  opacity: 0.9;
+  animation: drag-handle-demo 3.5s ease-in-out infinite;
+}
+
+@keyframes drag-highlight-demo {
+  0%,
+  40% {
+    clip-path: inset(0 calc(100% - 6ch) 0 0);
+  }
+  60%,
+  90% {
+    clip-path: inset(0 calc(100% - 12ch) 0 0);
+  }
+  100% {
+    clip-path: inset(0 calc(100% - 6ch) 0 0);
+  }
+}
+
+@keyframes drag-handle-demo {
+  0%,
+  40% {
+    left: 6ch;
+  }
+  60%,
+  90% {
+    left: 12ch;
+  }
+  100% {
+    left: 6ch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight,
+  .handle {
+    animation: none;
+  }
+  .highlight {
+    clip-path: inset(0 calc(100% - 12ch) 0 0);
+  }
+  .handle {
+    left: 12ch;
+  }
+}
