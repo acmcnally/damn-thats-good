@@ -2,6 +2,13 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "stop-dev-servers",
+      "detail": "Stop any api/web dev server left running from a previous run (used by 'dev')",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stop-dev-servers.sh",
+      "problemMatcher": []
+    },
+    {
       "label": "db",
       "detail": "Start Postgres (wait for healthy) + run migrations",
       "type": "shell",
@@ -29,9 +36,9 @@
     },
     {
       "label": "dev",
-      "detail": "db, then api + web",
+      "detail": "Make sure the latest code is running: stops any existing api/web dev servers, then db, then api + web",
       "dependsOrder": "sequence",
-      "dependsOn": ["db", "servers"],
+      "dependsOn": ["stop-dev-servers", "db", "servers"],
       "problemMatcher": []
     },
     {
