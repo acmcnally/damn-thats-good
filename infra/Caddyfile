@@ -3,7 +3,19 @@
 # only path routing: /api/* to the NestJS service, everything else to the static SPA.
 :8080 {
 	handle /api/* {
-		reverse_proxy api:3000
+		# Active health checks against the API's own /api/health so a dead/restarting
+		# backend is marked down proactively — requests get a clean, fast 502 instead of
+		# hanging on a dial to a host that's mid-restart. The transport timeouts bound
+		# the worst case between health-check ticks too.
+		reverse_proxy api:3000 {
+			health_uri /api/health
+			health_interval 5s
+			health_timeout 2s
+			transport http {
+				dial_timeout 2s
+				response_header_timeout 5s
+			}
+		}
 	}
 
 	handle {
