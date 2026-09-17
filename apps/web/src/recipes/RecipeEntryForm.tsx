@@ -20,6 +20,8 @@ import {
 import { type FormEvent, useState } from 'react';
 
 import { HelpTooltip } from '../components/HelpTooltip';
+import { MOBILE_MEDIA_QUERY } from '../shell/breakpoints';
+import { useMediaQuery } from '../shell/useMediaQuery';
 import { ApiError, createRecipe, saveRecipeContent, updateRecipeMetadata } from './api';
 import { DragBoundaryDemo } from './DragBoundaryDemo';
 import { IngredientsField } from './IngredientsField';
@@ -41,6 +43,9 @@ export function RecipeEntryForm({
   onSaved,
   onCancel,
 }: RecipeEntryFormProps) {
+  // On mobile, Cancel/Save move to a fixed bar (below) instead of sitting at
+  // the top of a form that can run well past one screen's height.
+  const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const [name, setName] = useState(initial?.name ?? '');
   const [servings, setServings] = useState(initial?.servings ?? '');
   const [provenance, setProvenance] = useState(initial?.provenance ?? '');
@@ -185,6 +190,19 @@ export function RecipeEntryForm({
     }
   }
 
+  // Shared between the inline (.actions) and fixed mobile (.mobileActionBar)
+  // placements below — exactly one renders, based on `isMobile`.
+  const actionButtons = (
+    <>
+      <button type="button" className={styles.btnGhost} onClick={onCancel}>
+        Cancel
+      </button>
+      <button type="submit" className={styles.btnPrimary} disabled={saving || !name.trim()}>
+        {saving ? 'Saving…' : 'Save Recipe'}
+      </button>
+    </>
+  );
+
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       {conflict && (
@@ -239,15 +257,10 @@ export function RecipeEntryForm({
             />
           </div>
         </div>
-        <div className={styles.actions}>
-          <button type="button" className={styles.btnGhost} onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="submit" className={styles.btnPrimary} disabled={saving || !name.trim()}>
-            {saving ? 'Saving…' : 'Save Recipe'}
-          </button>
-        </div>
+        {!isMobile && <div className={styles.actions}>{actionButtons}</div>}
       </div>
+
+      {isMobile && <div className={styles.mobileActionBar}>{actionButtons}</div>}
 
       <section className={styles.panel}>
         <div className={styles.panelHead}>

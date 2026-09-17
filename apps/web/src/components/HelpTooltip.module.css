@@ -1,3 +1,10 @@
+/* `position: relative` here is what makes .popover anchor tightly to the glyph
+   (its usual, compact desktop position) — the mobile media query below drops
+   it back to `static` so .popover instead anchors to the next positioned
+   ancestor up (RecipeEntryForm.module.css's `.panelHead`, spanning the full
+   card), which is what keeps the popover from overflowing off narrow
+   viewports regardless of where the glyph sits in that row. A caller using
+   this at a narrow viewport MUST provide such an ancestor for that to work. */
 .wrap {
   position: relative;
   display: inline-flex;
@@ -65,5 +72,20 @@
 @media (prefers-reduced-motion: reduce) {
   .popover {
     animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    position: static;
+  }
+
+  .popover {
+    /* Matches .panelHead's own left/right padding, so the popover's edges line
+       up with "Ingredients"/"Steps" and the rest of the card's content. */
+    left: var(--space-5);
+    right: var(--space-5);
+    width: auto;
+    max-width: none;
   }
 }

@@ -147,4 +147,13 @@ describe('mobile nav (bottom tab bar, <=640px)', () => {
     expect(fab).toHaveAttribute('aria-expanded', 'false');
     expect(router.state.location.pathname).toBe('/recipes/new');
   });
+
+  it('hides the Create FAB while the recipe entry form is open, but keeps the tab bar', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    renderRoute({ initialEntries: ['/recipes/new'] });
+
+    await screen.findByLabelText('Recipe name');
+    expect(screen.queryByRole('button', { name: /^create$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^recipes$/i })).toBeInTheDocument();
+  });
 });

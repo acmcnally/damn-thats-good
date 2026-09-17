@@ -125,6 +125,27 @@
   flex: none;
 }
 
+/* Mobile only (rendered instead of .actions — see the component). Sits flush
+   above the tab bar (--tabbar-height, shared with NavRail.module.css) with no
+   overlap, unlike the Create FAB's deliberate overlap there — the owner
+   explicitly didn't want that here. */
+.mobileActionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
+  z-index: 15;
+  height: var(--recipe-actionbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-2);
+}
+
 .btnPrimary,
 .btnGhost {
   font-family: inherit;
@@ -168,6 +189,10 @@
 }
 
 .panelHead {
+  /* Positioned so its <HelpTooltip> popover can re-anchor to this (full card
+     width) instead of the glyph itself at narrow viewports — see that
+     component's module CSS for why. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -195,12 +220,15 @@
     align-items: stretch;
   }
 
-  .actions {
-    justify-content: flex-end;
-    margin-top: var(--space-2);
-  }
-
   .nameInput {
     font-size: var(--text-xl);
+  }
+
+  .form {
+    /* Clears .mobileActionBar (fixed, sitting above the tab bar) — .main's own
+       bottom padding (AppShell.module.css) only accounts for the tab bar +
+       Create FAB, which this form's mobile action bar replaces but doesn't
+       share a footprint with. */
+    padding-bottom: calc(var(--recipe-actionbar-height) + var(--space-3));
   }
 }

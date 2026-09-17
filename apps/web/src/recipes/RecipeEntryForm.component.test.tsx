@@ -4,6 +4,8 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { MOBILE_MEDIA_QUERY } from '../shell/breakpoints';
+import { stubMatchMedia } from '../test/matchMedia';
 import { renderRoute } from '../test/renderRoute';
 
 vi.mock('@workos-inc/authkit-react', () => ({
@@ -173,6 +175,15 @@ describe('<RecipeEntryForm> — create', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Steps help' }));
     expect(screen.getByText(/numbered.*and bulleted.*lists continue/i)).toBeInTheDocument();
+  });
+
+  it('renders exactly one Cancel/Save pair on mobile, not both the inline and fixed copies', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    renderRoute({ initialEntries: ['/recipes/new'] });
+    await screen.findByLabelText('Recipe name');
+
+    expect(screen.getAllByRole('button', { name: /^cancel$/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /save recipe/i })).toHaveLength(1);
   });
 });
 

@@ -7,10 +7,15 @@
  * evaluate media queries, so a CSS-only swap would leave two "Primary"
  * landmarks in the tree at once (duplicate a11y surface, ambiguous test
  * queries). Active route is highlighted via `NavLink` in both variants.
+ *
+ * The mobile FAB also disappears (tab bar stays) while <RecipeEntryForm> is
+ * mounted — a "Create" affordance floating over a form that's already mid-edit
+ * doesn't make sense, and the form has its own fixed Cancel/Save bar there
+ * that this would otherwise visually compete with.
  */
 
 import { Fragment, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { BookIcon, CartIcon, DatabaseIcon, PlusIcon } from '../components/icons';
 import { MOBILE_MEDIA_QUERY } from './breakpoints';
@@ -38,22 +43,28 @@ const NAV_ITEMS: NavEntry[] = [
   { to: '/data', label: 'Data', mobileLabel: 'Data', Icon: DatabaseIcon },
 ];
 
+// Mirrors router.tsx's `recipes/new` / `recipes/:id/edit` routes — the only
+// two places <RecipeEntryForm> mounts, where the mobile Create FAB gets out of
+// its own way for the form's fixed Cancel/Save bar (RecipeEntryForm.module.css).
+const RECIPE_ENTRY_PATH = /^\/recipes\/(new|[^/]+\/edit)$/;
+
 export function NavRail() {
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
+  const isRecipeEntryRoute = RECIPE_ENTRY_PATH.test(useLocation().pathname);
   const navigate = useNavigate();
   const { isOpen, toggle, close, triggerRef, popoverRef } = usePopover('create');
 
   // Only one of the two trigger buttons below is ever mounted (see the module
-  // comment) — if the breakpoint flips while the Create popover is open, its
-  // trigger unmounts out from under it. Close on every flip; `close()` is a
-  // no-op when already closed, so this doesn't fight normal toggling.
-  // Deliberately isMobile-only, not [isMobile, close]: `close`'s identity
-  // changes on every open/close toggle (it closes over `isOpen`), so
-  // depending on it here would re-fire this effect on a normal open and
-  // immediately close what was just opened.
+  // comment) — if the breakpoint flips, or the FAB disappears for the recipe
+  // entry route below, while the Create popover is open, its trigger unmounts
+  // out from under it. Close on either change; `close()` is a no-op when
+  // already closed, so this doesn't fight normal toggling. Deliberately not
+  // depending on `close` itself: its identity changes on every open/close
+  // toggle (it closes over `isOpen`), so depending on it here would re-fire
+  // this effect on a normal open and immediately close what was just opened.
   useEffect(() => {
     close();
-  }, [isMobile]);
+  }, [isMobile, isRecipeEntryRoute]);
 
   const createMenu = (className: string | undefined) => (
     <div ref={popoverRef} className={className} role="group" aria-label="Create" hidden={!isOpen}>
@@ -84,21 +95,23 @@ export function NavRail() {
           </NavLink>
         ))}
 
-        <div className={styles.fabWrap}>
-          <button
-            ref={triggerRef}
-            type="button"
-            className={styles.fab}
-            aria-label="Create"
-            aria-haspopup="true"
-            aria-expanded={isOpen}
-            onClick={toggle}
-          >
-            <PlusIcon className={styles.fabIcon} />
-          </button>
+        {!isRecipeEntryRoute && (
+          <div className={styles.fabWrap}>
+            <button
+              ref={triggerRef}
+              type="button"
+              className={styles.fab}
+              aria-label="Create"
+              aria-haspopup="true"
+              aria-expanded={isOpen}
+              onClick={toggle}
+            >
+              <PlusIcon className={styles.fabIcon} />
+            </button>
 
-          {createMenu(`${styles.createMenu} ${styles.createMenuMobile}`)}
-        </div>
+            {createMenu(`${styles.createMenu} ${styles.createMenuMobile}`)}
+          </div>
+        )}
       </nav>
     );
   }
