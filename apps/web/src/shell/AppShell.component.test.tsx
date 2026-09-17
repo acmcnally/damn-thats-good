@@ -148,6 +148,19 @@ describe('mobile nav (bottom tab bar, <=640px)', () => {
     expect(router.state.location.pathname).toBe('/recipes/new');
   });
 
+  it('the inert Shopping list item just closes the Create popover, without navigating', async () => {
+    stubMatchMedia(MOBILE_MEDIA_QUERY, true);
+    const { router } = renderRoute({ initialEntries: ['/'] });
+
+    const fab = await screen.findByRole('button', { name: /^create$/i });
+    fireEvent.click(fab);
+    expect(screen.getByRole('group', { name: /create/i })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /^shopping list$/i }));
+    expect(fab).toHaveAttribute('aria-expanded', 'false');
+    expect(router.state.location.pathname).toBe('/');
+  });
+
   it('hides the Create FAB while the recipe entry form is open, but keeps the tab bar', async () => {
     stubMatchMedia(MOBILE_MEDIA_QUERY, true);
     renderRoute({ initialEntries: ['/recipes/new'] });

@@ -23,4 +23,18 @@ export class HealthController {
     }
     return result;
   }
+
+  /**
+   * `GET /api/health/live` — liveness only, deliberately independent of the DB.
+   * Caddy's active health check (infra/Caddyfile) targets this instead of the DB-
+   * inclusive `/api/health`: a transient DB blip must not mark the whole `api:3000`
+   * upstream down and 502 every `/api/*` route through it, including ones that
+   * never touch the database (`/api/config`). `/api/health` itself keeps its
+   * documented DB-inclusive contract (ADR-0010) for the external uptime monitor.
+   */
+  @Public()
+  @Get('live')
+  live(): { status: 'ok' } {
+    return { status: 'ok' };
+  }
 }

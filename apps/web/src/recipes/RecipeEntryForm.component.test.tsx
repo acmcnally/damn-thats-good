@@ -220,6 +220,24 @@ describe('<RecipeEntryForm> — edit', () => {
     expect(patchBody).toMatchObject({ servings: '', provenance: '' });
   });
 
+  it('skips the metadata PATCH entirely for a content-only save', async () => {
+    // No PATCH handler registered — server.listen({ onUnhandledRequest: 'error' })
+    // (top of file) fails this test if the form sends one anyway.
+    server.use(
+      http.get('/api/recipes/r1', () => HttpResponse.json(existing)),
+      http.put('/api/recipes/r1/content', () =>
+        HttpResponse.json({ ...existing, currentVersionId: 'v2' }),
+      ),
+    );
+    const { router } = renderRoute({ initialEntries: ['/recipes/r1/edit'] });
+
+    await screen.findByLabelText('Servings');
+    fireEvent.change(screen.getByLabelText('Steps'), { target: { value: 'Heat the oil.' } });
+    fireEvent.click(screen.getByRole('button', { name: /save recipe/i }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/recipes/r1'));
+  });
+
   it('keeps a manually confirmed ingredient boundary instead of re-auto-detecting it', async () => {
     const withConfirmedIngredient: RecipeDetail = {
       ...existing,

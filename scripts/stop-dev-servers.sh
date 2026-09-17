@@ -18,7 +18,10 @@ stop_group() {
 
   pid="$(pgrep -f "$pattern" | head -1 || true)"
   [ -n "$pid" ] || return 0
-  pgid="$(ps -o pgid= -p "$pid" | tr -d ' ')"
+  # The process can exit between the pgrep above and this ps (e.g. it was already
+  # shutting down) — `|| true` keeps that from aborting the whole script under
+  # `set -e` before the other pattern's stop_group call ever runs.
+  pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')" || true
   [ -n "$pgid" ] || return 0
 
   echo "==> stopping existing $name dev server (pgid $pgid)"

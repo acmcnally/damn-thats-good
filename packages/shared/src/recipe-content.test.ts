@@ -202,6 +202,26 @@ describe('reconcileLines', () => {
     expect(result[0]!.id).not.toBe(second.id);
   });
 
+  it('matches an untouched line even with incidental leading/trailing whitespace added', () => {
+    // A previous line's canonical text is always already edge-trimmed (the schema
+    // trims `raw`/`text`) — the current textarea line must be too, or a stray space
+    // mismatches an otherwise-untouched line, minting a fresh id and reverting a
+    // confirmed boundary back to auto-detected.
+    const line = ingredientLine({
+      raw: '2 tbsp olive oil',
+      quantity: '2 tbsp',
+      item: 'olive oil',
+      parseStatus: 'confirmed',
+    });
+    const [result] = reconcileLines(
+      [line],
+      [`  ${ingredientOrHeadingLineToRawText(line)}  `],
+      ingredientOrHeadingLineToRawText,
+      parseNewIngredientOrHeadingLine,
+    );
+    expect(result).toBe(line);
+  });
+
   it('keeps a blank line as its own line instead of producing an empty-item/text line', () => {
     // A blank line is pure editing whitespace (e.g. between a section's last item and
     // the next heading), never content — but it's still stored, as `kind: 'blank'`, so

@@ -32,6 +32,11 @@ describe('autoDetectBoundary', () => {
     expect(boundaryFor('2 cups flour')).toBe(2);
   });
 
+  it('recognizes a period-abbreviated unit', () => {
+    expect(boundaryFor('2 tbsp. olive oil')).toBe(2);
+    expect(boundaryFor('1 tsp. cayenne')).toBe(2);
+  });
+
   it('does not look past a parenthesized aside for the unit', () => {
     // "(15" isn't a bare quantity word or a recognized unit, so detection stops
     // after "2" — a known, accepted rough edge (the boundary is user-draggable).

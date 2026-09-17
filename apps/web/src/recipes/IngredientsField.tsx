@@ -147,6 +147,10 @@ export function IngredientsField({
         best = b;
       }
     }
+    // Every candidate offset measured `null` this tick (domMeasure.ts: a real,
+    // expected case, not an error) — leave the override as it was rather than
+    // snapping it to the loop's unmoved initial `best` of 0.
+    if (bestDist === Infinity) return;
     onOverridesChangeRef.current({ ...overridesRef.current, [lineText]: best });
   }
 

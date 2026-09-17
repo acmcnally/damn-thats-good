@@ -69,7 +69,9 @@ export function autoDetectBoundary(words: Word[]): number {
   if (second && QTY_WORD.test(second.text)) i++;
   const unitWord = words[i];
   if (unitWord) {
-    const w = unitWord.text.toLowerCase().replace(/[(),]/g, '');
+    // Strips a trailing period too ("tbsp.", "tsp.", "oz.") — a common abbreviation
+    // style that would otherwise never match `UNITS`.
+    const w = unitWord.text.toLowerCase().replace(/[(),.]/g, '');
     if (UNITS.includes(w) || UNITS.includes(w.replace(/s$/, ''))) i++;
   }
   return Math.min(i, maxIngredientBoundary(words.length));

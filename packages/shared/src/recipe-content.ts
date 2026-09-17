@@ -143,6 +143,13 @@ export function parseNewStepOrHeadingLine(
  * how much whitespace it is) so the LCS pass doesn't churn ids over whitespace that
  * doesn't matter — every blank current line matches any blank previous line
  * interchangeably, same as the general "duplicate identical lines" case below.
+ *
+ * Every current line is trimmed before comparison for the same reason: `canonicalText`
+ * of a *previous* line is always already edge-trimmed (`raw`/`text` are `z.string()
+ * .trim()` in the schema), so comparing it against an untrimmed current line would
+ * mismatch a genuinely unchanged line over incidental leading/trailing whitespace —
+ * minting it a fresh id and reverting an ingredient's `parseStatus` from `'confirmed'`
+ * back to `'auto'` for no real edit.
  */
 export function reconcileLines<T extends { id: string }>(
   previous: T[],
@@ -150,7 +157,7 @@ export function reconcileLines<T extends { id: string }>(
   canonicalText: (line: T) => string,
   parseNew: (raw: string) => Omit<T, 'id'>,
 ): T[] {
-  const currentTexts = currentRawLines.map((line) => (line.trim() ? line : ''));
+  const currentTexts = currentRawLines.map((line) => line.trim());
   const prevTexts = previous.map(canonicalText);
   const n = prevTexts.length;
   const m = currentTexts.length;

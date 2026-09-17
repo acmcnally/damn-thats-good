@@ -53,6 +53,14 @@ describe('GET /api/health', () => {
   });
 });
 
+describe('GET /api/health/live', () => {
+  it('is reachable with no Authorization header (@Public) and never reports db', async () => {
+    const res = await request(app.getHttpServer()).get('/api/health/live');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok' });
+  });
+});
+
 describe('GET /api/config', () => {
   it('is reachable with no Authorization header (@Public) and returns the Client ID', async () => {
     const res = await request(app.getHttpServer()).get('/api/config');

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import type { Server } from 'node:http';
 
+import { ShutdownSignal } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
@@ -34,7 +35,11 @@ async function bootstrap(): Promise<void> {
   console.log(`api listening on http://localhost:${port}/api`);
 
   const httpServer = app.getHttpServer() as Server;
-  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  // Same signal coverage the replaced `app.enableShutdownHooks()` (no args) used —
+  // it defaults to every `ShutdownSignal`, not just SIGTERM/SIGINT — so switching to
+  // this draining path doesn't also narrow what can trigger a graceful shutdown at
+  // all (e.g. `docker kill -s SIGQUIT`, or a supervisor that sends SIGHUP).
+  for (const signal of Object.values(ShutdownSignal)) {
     process.once(signal, () => {
       console.log(`api: ${signal} received, draining connections`);
       const forceTimer = setTimeout(() => {

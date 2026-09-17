@@ -152,25 +152,40 @@ export function RecipeEntryForm({
         return;
       }
 
-      try {
-        const patched = await updateRecipeMetadata(getAccessToken, initial.id, {
-          expectedUpdtCnt,
-          ...metadataFields,
-        });
-        // Adopt the server's new counter immediately — if the content save
-        // below fails, a retry must use this value, not the one this render
-        // started with, or it 412s against a save that already succeeded.
-        setExpectedUpdtCnt(patched.updateCnt);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 412) {
-          setConflict('metadata');
-          return;
+      // Skip the metadata PATCH entirely when nothing in it actually changed —
+      // sending it unconditionally on every save (including a content-only edit)
+      // still bumps the server's optimistic-concurrency counter (recipes.service.ts
+      // unconditionally increments `updateCnt`), which spuriously 412s a concurrent
+      // edit to a completely disjoint field as a false "changed elsewhere" conflict.
+      const metadataChanged =
+        metadataFields.name !== initial.name ||
+        metadataFields.servings !== (initial.servings ?? '') ||
+        metadataFields.provenance !== (initial.provenance ?? '') ||
+        metadataFields.tags.length !== initial.tags.length ||
+        !metadataFields.tags.every((tag) => initial.tags.includes(tag));
+
+      if (metadataChanged) {
+        try {
+          const patched = await updateRecipeMetadata(getAccessToken, initial.id, {
+            expectedUpdtCnt,
+            ...metadataFields,
+          });
+          // Adopt the server's new counter immediately — if the content save
+          // below fails, a retry must use this value, not the one this render
+          // started with, or it 412s against a save that already succeeded.
+          setExpectedUpdtCnt(patched.updateCnt);
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 412) {
+            setConflict('metadata');
+            return;
+          }
+          throw err;
         }
-        throw err;
       }
 
-      // Reaching here means the metadata patch above committed — a 412 from
-      // this point on is reported as a content conflict, not a metadata one.
+      // Reaching here means the metadata patch above committed (or there wasn't
+      // one to make) — a 412 from this point on is a content conflict, not a
+      // metadata one.
       const withContent = await saveRecipeContent(
         getAccessToken,
         initial.id,

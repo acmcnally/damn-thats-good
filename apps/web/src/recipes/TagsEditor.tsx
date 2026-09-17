@@ -28,12 +28,22 @@ export function TagsEditor({ tags, onChange, getAccessToken }: TagsEditorProps) 
 
   useEffect(() => {
     if (!isAdding) return;
+    let cancelled = false;
     const handle = setTimeout(() => {
       listTags(getAccessToken, query)
-        .then((rows) => setSuggestions(rows.map((r) => r.name)))
-        .catch(() => setSuggestions([]));
+        .then((rows) => {
+          // A faster later request can resolve before this (slower) one — without
+          // this guard its stale results would overwrite the newer suggestions.
+          if (!cancelled) setSuggestions(rows.map((r) => r.name));
+        })
+        .catch(() => {
+          if (!cancelled) setSuggestions([]);
+        });
     }, 150);
-    return () => clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
   }, [isAdding, query, getAccessToken]);
 
   // A fresh query invalidates whatever was highlighted for the previous list.
